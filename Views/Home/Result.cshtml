@@ -1,0 +1,211 @@
+@model ReagentBarcode.Models.BarcodeResult
+@{
+    ViewData["Title"] = "Barcode Generated";
+}
+
+<div class="container-fluid py-4">
+    <!-- Success Alert -->
+    @if (TempData["Success"] != null)
+    {
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center py-4">
+                    <h1 class="display-6 text-success mb-2">
+                        <i class="fas fa-check-circle me-3"></i>Barcode Generated Successfully
+                    </h1>
+                    <p class="text-muted">Your reagent barcode has been created</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Barcode Display -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-barcode me-2"></i>Generated Barcode
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <!-- Barcode Image -->
+                    <div class="mb-4">
+                        @if (!string.IsNullOrEmpty(Model.BarcodeImageBase64))
+                        {
+                            <img src="@Model.BarcodeImageBase64" alt="Barcode" class="img-fluid border rounded shadow-sm" style="max-width: 100%; height: auto;" />
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Barcode image could not be generated
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Barcode Details -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary">Barcode Number</h6>
+                                    <h4 class="font-monospace text-break">@Model.BarcodeNumber</h4>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToClipboard('@Model.BarcodeNumber')">
+                                        <i class="fas fa-copy me-1"></i>Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary">Label Text</h6>
+                                    <h5>@Model.LabelText</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reagent Information -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-muted mb-3">Reagent Information</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <tbody>
+                                        <tr>
+                                            <td class="bg-light fw-bold" width="30%">Chemical</td>
+                                            <td>@Model.Chem</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Bottle Type</td>
+                                            <td>@Model.BottleType</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Reagent Type</td>
+                                            <td>@Model.RgtType</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Lot Number</td>
+                                            <td>@Model.LotNumber</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Serial Number</td>
+                                            <td>@Model.SerialNumber</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Expiry Date</td>
+                                            <td>@Model.ExpDate.ToString("MMM dd, yyyy")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="bg-light fw-bold">Generated At</td>
+                                            <td>@Model.GeneratedAt.ToString("MMM dd, yyyy HH:mm:ss")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Sidebar -->
+        <div class="col-lg-4">
+            <!-- Action Buttons -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-cogs me-2"></i>Actions
+                    </h6>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a href="@Url.Action("Index")" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Generate Another
+                    </a>
+                    <a href="@Url.Action("History")" class="btn btn-outline-success">
+                        <i class="fas fa-history me-2"></i>View All Barcodes
+                    </a>
+                    <button class="btn btn-outline-info" onclick="printBarcode()">
+                        <i class="fas fa-print me-2"></i>Print Barcode
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="downloadImage()">
+                        <i class="fas fa-download me-2"></i>Download Image
+                    </button>
+                </div>
+            </div>
+
+            <!-- API Response -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-code me-2"></i>API Response
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">JSON response from API:</p>
+                    <pre class="bg-light p-2 rounded small"><code>@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }))</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                // Show success message
+                const btn = event.target.closest('button');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalIcon;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                }, 2000);
+            });
+        }
+
+        function printBarcode() {
+            window.print();
+        }
+
+        function downloadImage() {
+            const img = document.querySelector('img[alt="Barcode"]');
+            if (img) {
+                const link = document.createElement('a');
+                link.download = 'barcode_@Model.BarcodeNumber.Replace("-", "_").Replace(" ", "_")' + '.png';
+                link.href = img.src;
+                link.click();
+            }
+        }
+
+        // Add print styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @@media print {
+                body * { visibility: hidden; }
+                .card-body, .card-body * { visibility: visible; }
+                .card-body { position: absolute; left: 0; top: 0; width: 100%; }
+                .btn, .alert { display: none !important; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+}

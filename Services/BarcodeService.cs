@@ -70,8 +70,17 @@ namespace ReagentBarcode.Services
                 string pLotPart = "";
                 int calibration = 0;
 
+                // Use prefix from sample if found
+                string currentPrefix = ic + bc + rc;
+
                 if (sample != null)
                 {
+                    // If we found a sample, use its item/bottle/reagent code if they differ from input?
+                    // Usually we should use what's in the sample for better consistency with anchor data
+                    if (sample.Full.Length >= 5) {
+                        currentPrefix = sample.Full.Substring(0, 5);
+                    }
+
                     int totalLen = sample.Full.Length;
                     int midLen = totalLen - 11 - 4 - 1;
                     string samplePLot = sample.Full.Substring(11, midLen);
@@ -115,8 +124,7 @@ namespace ReagentBarcode.Services
                     calibration = 10;
                 }
 
-                string cFixed = ic + bc + rc + dt;
-                string cFinal = cFixed + pLotPart + s4;
+                string cFinal = currentPrefix + dt + pLotPart + s4;
                 int currentWSum = CalculateWeightedSum(cFinal);
                 int cs = (calibration - (currentWSum % 10) + 20) % 10;
                 
@@ -126,7 +134,7 @@ namespace ReagentBarcode.Services
                     Success = true, 
                     BarcodeNumber = fullBarcode, 
                     BarcodeImageBase64 = GenerateBarcodeImage(fullBarcode),
-                    Chem = i.Chem, GenItemCode = ic, GenBottleCode = bc, GenReagentCode = rc,
+                    Chem = i.Chem, GenItemCode = currentPrefix.Substring(0,3), GenBottleCode = currentPrefix.Substring(3,1), GenReagentCode = currentPrefix.Substring(4,1),
                     LotNumber = i.LotNumber, SerialNumber = s4, ExpDate = exp, GeneratedAt = DateTime.Now
                 };
             } catch (Exception ex) { return Fail(ex.Message); }
@@ -146,26 +154,38 @@ namespace ReagentBarcode.Services
 
         private BarcodeSample? FindClosestSample(List<BarcodeSample> samples, string ic, string bc, string rc, string s4, string? lot)
         {
-            var candidates = samples.Where(s => s.ItemCode == ic).ToList();
-            if (!candidates.Any()) return null;
+            var chemistrySamples = samples.Where(s => s.ItemCode == ic).ToList();
+            if (!chemistrySamples.Any()) return null;
 
-            // Priority 0: Exact Serial Match within Chemistry
-            var exactS = candidates.FirstOrDefault(c => c.Serial == s4);
-            if (exactS != null) return exactS;
+            // Priority 1: Match everything exactly (IC, BC, RC, Serial)
+            var exactMatch = chemistrySamples.FirstOrDefault(s => 
+                s.Serial == s4 && 
+                s.Full.Length >= 5 && 
+                s.Full.Substring(3, 1) == bc && 
+                s.Full.Substring(4, 1) == rc);
+            if (exactMatch != null) return exactMatch;
 
-            // Priority 1: Match BCRC exactly
-            var bcrcFiltered = candidates.Where(c => c.Full.Substring(3,1) == bc && c.Full.Substring(4,1) == rc).ToList();
-            if (bcrcFiltered.Any()) candidates = bcrcFiltered;
+            // Priority 2: Match IC, BC, RC and find closest serial
+            var typeSamples = chemistrySamples.Where(s => 
+                s.Full.Length >= 5 && 
+                s.Full.Substring(3, 1) == bc && 
+                s.Full.Substring(4, 1) == rc).ToList();
 
-            // Priority 2: Match Lot
-            string lotClean = new string((lot ?? "").Where(char.IsDigit).ToArray());
-            if (!string.IsNullOrEmpty(lotClean)) {
-                var lotFiltered = candidates.Where(c => c.Full.Contains(lotClean)).ToList();
-                if (lotFiltered.Any()) candidates = lotFiltered;
+            if (typeSamples.Any()) {
+                int targetSerial = int.Parse(s4);
+                return typeSamples.OrderBy(s => {
+                    if (int.TryParse(s.Serial, out int sv)) return Math.Abs(targetSerial - sv);
+                    return 9999;
+                }).First();
             }
 
+            // Priority 3: Fallback to any sample with matching chemistry and serial
+            var serialMatch = chemistrySamples.FirstOrDefault(s => s.Serial == s4);
+            if (serialMatch != null) return serialMatch;
+
+            // Final Priority: Closest serial in chemistry
             int sVal = int.Parse(s4);
-            return candidates.OrderBy(c => {
+            return chemistrySamples.OrderBy(c => {
                 if (int.TryParse(c.Serial, out int csv)) return Math.Abs(sVal - csv);
                 return 9999;
             }).FirstOrDefault();
@@ -216,8 +236,10 @@ namespace ReagentBarcode.Services
             } catch { return Array.Empty<byte>(); }
         }
 
-        private DateTime ParseExpiryDate(string ds) {
-            if (DateTime.TryParseExact(ds, new[] { "dd-MM-yyyy", "d-M-yyyy", "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "MM-dd-yyyy", "yyyy-MM-dd", "M/dd/yyyy", "MM/d/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) return d;
+        private DateTime ParseExpiryDate(string ds)
+        {
+            if (DateTime.TryParseExact(ds, new[] { "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) 
+                return d;
             return DateTime.Now;
         }
 

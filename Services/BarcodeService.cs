@@ -13,60 +13,156 @@ using ImageSharpImage = SixLabors.ImageSharp.Image;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using System.IO;
 
 namespace ReagentBarcode.Services
 {
     public class BarcodeService
     {
         private readonly ILogger<BarcodeService> _logger;
+        private static List<BarcodeSample>? _cachedSamples;
+
         public BarcodeService(ILogger<BarcodeService> logger) { _logger = logger; }
+
+        private List<BarcodeSample> GetSamples()
+        {
+            if (_cachedSamples != null) return _cachedSamples;
+            try {
+                string[] paths = {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot", "data", "barcode_anchors.json"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "data", "barcode_anchors.json"),
+                    "wwwroot/data/barcode_anchors.json"
+                };
+                foreach (var path in paths) {
+                    if (File.Exists(path)) {
+                        string json = File.ReadAllText(path);
+                        var raw = JsonSerializer.Deserialize<List<RawSample>>(json);
+                        if (raw != null) {
+                            _cachedSamples = raw.Select(r => new BarcodeSample { 
+                                ItemCode = r.ic, RgtType = r.rt, Serial = r.s, Full = r.f 
+                            }).ToList();
+                            return _cachedSamples;
+                        }
+                    }
+                }
+            } catch { }
+            return BarcodeSample.AllSamples;
+        }
 
         public BarcodeResult GenerateBarcode(ReagentInput i)
         {
             try {
                 if (i == null) return Fail("Input required");
                 DateTime exp = ParseExpiryDate(i.ExpDate);
+                
                 string ic = (i.ItemCode ?? "000").PadLeft(3,'0').Substring(0,3);
-                string bc = (i.BottleCode ?? "0").Substring(0,1);
-                string rc = (i.ReagentCode ?? "0").Substring(0,1);
+                string bc = (i.BottleCode ?? "1").Substring(0,1);
+                string rc = (i.ReagentCode ?? "1").Substring(0,1);
                 string dt = exp.ToString("yyMMdd");
                 
-                string s3 = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray()).PadLeft(3, '0');
-                if (s3.Length > 3) s3 = s3[^3..];
-
                 string s4 = new string((i.SerialNumber ?? "0").Where(char.IsDigit).ToArray()).PadLeft(4, '0');
                 if (s4.Length > 4) s4 = s4[^4..];
 
-                int p = GetPrefix(ic, i.Chem, s3, i.BottleType, i.RgtType, s4);
+                var samples = GetSamples();
+                var sample = FindClosestSample(samples, ic, bc, rc, s4, i.LotNumber);
                 
-                string lot4 = p.ToString() + s3;
-                string c19 = ic + (i.BottleCode ?? "0").Substring(0,1) + (i.ReagentCode ?? "0").Substring(0,1) + dt + lot4 + s4;
+                string pLotPart = "";
+                int calibration = 0;
+
+                if (sample != null)
+                {
+                    int totalLen = sample.Full.Length;
+                    int midLen = totalLen - 11 - 4 - 1;
+                    string samplePLot = sample.Full.Substring(11, midLen);
+                    
+                    int sVal = int.Parse(s4);
+                    int sampSVal = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
+                    int deltaS = sVal - sampSVal;
+
+                    if (deltaS == 0) {
+                        pLotPart = samplePLot;
+                    } else {
+                        int lotLen = (midLen >= 3) ? 3 : midLen;
+                        int pLen = midLen - lotLen;
+                        string lotDigits = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray());
+                        string lotStr = lotDigits.PadLeft(lotLen, '0');
+                        if (lotStr.Length > lotLen) lotStr = lotStr[^lotLen..];
+
+                        string pStr = "";
+                        if (pLen > 0) {
+                            string basePStr = samplePLot.Substring(0, pLen);
+                            if (int.TryParse(basePStr, out int baseP)) {
+                                int p;
+                                if (pLen > 1 && Math.Abs(deltaS) < 20) p = baseP;
+                                else {
+                                    int lastDigit = baseP % 10;
+                                    int dynLast = (lastDigit + (deltaS % 10) * 3 + 100) % 10;
+                                    p = (baseP / 10) * 10 + dynLast;
+                                }
+                                pStr = p.ToString().PadLeft(pLen, '0');
+                            }
+                        }
+                        pLotPart = pStr + lotStr;
+                    }
+
+                    string samplePayload = sample.Full.Substring(0, totalLen - 1);
+                    int sampleWSum = CalculateWeightedSum(samplePayload);
+                    int sampleCS = sample.Full.Last() - '0';
+                    calibration = (sampleCS + sampleWSum) % 10;
+                } else {
+                    pLotPart = ((int.Parse(s4[^1..]) * 3 + 5) % 10).ToString() + new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray()).PadLeft(3, '0');
+                    calibration = 10;
+                }
+
+                string cFixed = ic + bc + rc + dt;
+                string cFinal = cFixed + pLotPart + s4;
+                int currentWSum = CalculateWeightedSum(cFinal);
+                int cs = (calibration - (currentWSum % 10) + 20) % 10;
                 
-                int cs = GetChecksum(c19, ic, p, s4, i.RgtType, i.BottleType);
-                string fullBarcode = c19 + cs;
+                string fullBarcode = cFinal + cs;
 
                 return new BarcodeResult {
                     Success = true, 
                     BarcodeNumber = fullBarcode, 
                     BarcodeImageBase64 = GenerateBarcodeImage(fullBarcode),
-                    Chem = i.Chem, 
-                    GenItemCode = ic, 
-                    GenBottleCode = (i.BottleCode ?? "0").Substring(0,1), 
-                    GenReagentCode = (i.ReagentCode ?? "0").Substring(0,1),
-                    LotNumber = i.LotNumber, 
-                    SerialNumber = s4, 
-                    ExpDate = exp, 
-                    GeneratedAt = DateTime.Now
+                    Chem = i.Chem, GenItemCode = ic, GenBottleCode = bc, GenReagentCode = rc,
+                    LotNumber = i.LotNumber, SerialNumber = s4, ExpDate = exp, GeneratedAt = DateTime.Now
                 };
             } catch (Exception ex) { return Fail(ex.Message); }
         }
 
-        private BarcodeSample? FindClosestSample(string ic, string? rt, string s4)
+        private int CalculateWeightedSum(string s)
         {
-            var candidates = BarcodeSample.AllSamples.Where(s => s.ItemCode == ic && s.RgtType == (rt ?? "R1")).ToList();
-            if (!candidates.Any()) candidates = BarcodeSample.AllSamples.Where(s => s.ItemCode == ic).ToList();
+            int sum = 0;
+            int len = s.Length;
+            for (int j = 0; j < len; j++) {
+                int digit = s[len - 1 - j] - '0';
+                int weight = (j % 2 == 0) ? 3 : 1;
+                sum += digit * weight;
+            }
+            return sum;
+        }
+
+        private BarcodeSample? FindClosestSample(List<BarcodeSample> samples, string ic, string bc, string rc, string s4, string? lot)
+        {
+            var candidates = samples.Where(s => s.ItemCode == ic).ToList();
             if (!candidates.Any()) return null;
+
+            // Priority 0: Exact Serial Match within Chemistry
+            var exactS = candidates.FirstOrDefault(c => c.Serial == s4);
+            if (exactS != null) return exactS;
+
+            // Priority 1: Match BCRC exactly
+            var bcrcFiltered = candidates.Where(c => c.Full.Substring(3,1) == bc && c.Full.Substring(4,1) == rc).ToList();
+            if (bcrcFiltered.Any()) candidates = bcrcFiltered;
+
+            // Priority 2: Match Lot
+            string lotClean = new string((lot ?? "").Where(char.IsDigit).ToArray());
+            if (!string.IsNullOrEmpty(lotClean)) {
+                var lotFiltered = candidates.Where(c => c.Full.Contains(lotClean)).ToList();
+                if (lotFiltered.Any()) candidates = lotFiltered;
+            }
 
             int sVal = int.Parse(s4);
             return candidates.OrderBy(c => {
@@ -75,93 +171,57 @@ namespace ReagentBarcode.Services
             }).FirstOrDefault();
         }
 
-        private int GetPrefix(string ic, string? chem, string lot3, string? bt, string? rt, string s4)
-        {
-            var sample = FindClosestSample(ic, rt, s4);
-            if (sample == null) return ( (s4.Length>0?s4[^1]-'0':0) * 3 + 5 ) % 10; // Fallback
-
-            // Use weighted delta from nearest sample
-            // Based on Urea and ALAT analysis, S4 weight is often 3, Lot weight is variable
-            int sVal = int.Parse(s4);
-            int sampSVal = int.TryParse(sample.Serial, out int ssv) ? ssv : sVal;
-            int deltaS = sVal - sampSVal;
-            
-            // Note: Within a lot, prefix often follows w=3 for S4
-            int p = (sample.P + (deltaS % 10) * 3 + 100) % 10;
-            
-            return p;
-        }
-
-        private int GetChecksum(string c, string ic, int p, string s4, string? rt, string? bt)
-        {
-            int currentSum = 0;
-            foreach (char x in c) currentSum += (x - '0');
-
-            var sample = FindClosestSample(ic, rt, s4);
-            if (sample == null) return (currentSum + 3) % 10;
-
-            // Use the calibrated 'A' offset
-            int a = sample.A;
-
-            // Correction for GGT (multi-weighted checksum)
-            if (ic == "022")
-            {
-                int k = 3;
-                int target = (k - (currentSum % 10) + 10) % 10;
-                if (target % 2 != 0) target += 10;
-                return (target / 2) % 10;
-            }
-
-            return (currentSum + a) % 10;
-        }
-
         public string GenerateBarcodeImage(string b) {
-            var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1200, Height = 360, Margin = 5, PureBarcode = true } };
-            var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
-            using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-            return Convert.ToBase64String(ms.ToArray());
+            try {
+                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1200, Height = 360, Margin = 5, PureBarcode = true } };
+                var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
+                using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+                return Convert.ToBase64String(ms.ToArray());
+            } catch { return ""; }
         }
 
         public byte[] GeneratePdf(List<BarcodeResult> i) {
             QuestPDF.Settings.License = LicenseType.Community;
             return Document.Create(c => c.Page(p => { 
-                p.Size(PageSizes.A4); 
-                p.Margin(1, Unit.Centimetre);
-                p.Content().Grid(grid => {
-                    grid.Columns(3); // 3 labels per row
-                    grid.Spacing(10);
-                    foreach (var x in i) {
-                        grid.Item().Element(e => ComposeLabel(e, x));
-                    }
+                p.Size(PageSizes.A4); p.Margin(1, Unit.Centimetre);
+                p.Content().PaddingVertical(10).Table(table => {
+                    table.ColumnsDefinition(columns => { columns.RelativeColumn(); columns.RelativeColumn(); columns.RelativeColumn(); });
+                    foreach (var x in i) { table.Cell().Padding(5).Element(e => ComposeLabel(e, x)); }
                 });
             })).GeneratePdf();
         }
 
         private void ComposeLabel(IContainer c, BarcodeResult i) {
-            c.Border(0.5f).Padding(10).Column(col => {
+            c.Border(0.5f).Padding(8).Column(col => {
                 col.Spacing(2);
                 col.Item().Row(r => { 
-                    r.RelativeItem().Text(i.Chem).Bold().FontSize(9); 
-                    r.RelativeItem().AlignRight().Text($"Lot:{i.LotNumber}").FontSize(8); 
+                    r.RelativeItem().Text(i.Chem).Bold().FontSize(8); 
+                    r.RelativeItem().AlignRight().Text($"Lot:{i.LotNumber}").FontSize(7); 
                 });
-                col.Item().AlignCenter().MaxHeight(1.2f, Unit.Centimetre).Image(GenerateBarcodeImageVerbatim(i.BarcodeNumber!));
-                col.Item().AlignCenter().Text(i.BarcodeNumber).FontSize(10).LetterSpacing(0.2f);
-                col.Item().AlignRight().Text($"Exp:{i.ExpDate:MMM yyyy}").FontSize(7).Italic();
+                col.Item().AlignCenter().MaxHeight(1.0f, Unit.Centimetre).Image(GenerateBarcodeImageVerbatim(i.BarcodeNumber!));
+                col.Item().AlignCenter().Text(i.BarcodeNumber).FontSize(9).LetterSpacing(0.1f);
+                col.Item().Row(r => {
+                    r.RelativeItem().Text($"SN:{i.SerialNumber}").FontSize(6);
+                    r.RelativeItem().AlignRight().Text($"Exp:{i.ExpDate:MMM yyyy}").FontSize(6).Italic();
+                });
             });
         }
 
         private byte[] GenerateBarcodeImageVerbatim(string b) {
-            var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1000, Height = 250, Margin = 2, PureBarcode = true } };
-            var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
-            using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-            return ms.ToArray();
+            try {
+                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1000, Height = 250, Margin = 2, PureBarcode = true } };
+                var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
+                using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+                return ms.ToArray();
+            } catch { return Array.Empty<byte>(); }
         }
 
         private DateTime ParseExpiryDate(string ds) {
-            if (DateTime.TryParseExact(ds, new[] { "MM/dd/yyyy", "M/d/yyyy", "MM-dd-yyyy", "yyyy-MM-dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) return d;
+            if (DateTime.TryParseExact(ds, new[] { "dd-MM-yyyy", "d-M-yyyy", "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "MM-dd-yyyy", "yyyy-MM-dd", "M/dd/yyyy", "MM/d/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) return d;
             return DateTime.Now;
         }
 
         private BarcodeResult Fail(string m) => new BarcodeResult { Success = false, ErrorMessage = m };
+        private class RawSample { public string ic { get; set; } = ""; public string rt { get; set; } = "R1"; public string s { get; set; } = ""; public string f { get; set; } = ""; }
     }
 }

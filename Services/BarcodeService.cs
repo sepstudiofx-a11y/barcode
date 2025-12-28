@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using ReagentBarcode.Models;
 using ZXing;
 using ZXing.Common;
+using ZXing.OneD;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -199,7 +200,14 @@ namespace ReagentBarcode.Services
 
         public string GenerateBarcodeImage(string b) {
             try {
-                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1200, Height = 360, Margin = 5, PureBarcode = true } };
+                var options = new Code128EncodingOptions { 
+                    Width = 1200, 
+                    Height = 360, 
+                    Margin = 5, 
+                    PureBarcode = true,
+                    ForceCodeset = Code128EncodingOptions.Codesets.C
+                };
+                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };
                 var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
                 using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
                 return Convert.ToBase64String(ms.ToArray());
@@ -235,7 +243,14 @@ namespace ReagentBarcode.Services
 
         private byte[] GenerateBarcodeImageVerbatim(string b) {
             try {
-                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = new EncodingOptions { Width = 1000, Height = 250, Margin = 2, PureBarcode = true } };
+                var options = new Code128EncodingOptions { 
+                    Width = 1000, 
+                    Height = 250, 
+                    Margin = 2, 
+                    PureBarcode = true,
+                    ForceCodeset = Code128EncodingOptions.Codesets.C
+                };
+                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };
                 var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
                 using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
                 return ms.ToArray();
@@ -244,7 +259,14 @@ namespace ReagentBarcode.Services
 
         private DateTime ParseExpiryDate(string ds)
         {
-            if (DateTime.TryParseExact(ds, new[] { "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) 
+            var formats = new[] { 
+                "dd/MM/yyyy", "d/M/yyyy", 
+                "dd-MM-yyyy", "d-M-yyyy",
+                "dd.MM.yyyy", "d.M.yyyy",
+                "MM/dd/yyyy", "M/d/yyyy", 
+                "yyyy-MM-dd" 
+            };
+            if (DateTime.TryParseExact(ds, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime d)) 
                 return d;
             return DateTime.Now;
         }

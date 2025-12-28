@@ -238,26 +238,17 @@
         $("#barcodeForm").submit(function (e) {
             e.preventDefault();
 
-            // Validate form - Check required fields
-            const dateVal = $("#ExpDate").val();
-            // Regex for DD/MM/YYYY
-            const dateRegex = /^(0?[1-9]|[12][0-9]|3[01])[\/](0?[1-9]|1[012])[\/]\d{4}$/;
-            if (!dateRegex.test(dateVal)) {
-                showAlert("Please enter a valid date in DD/MM/YYYY format (e.g., 30/09/2025)", "warning");
-                return;
-            }
-
             const payload = {
                 ItemCode: $("#ItemCode").val(),
                 BottleCode: $("#BottleCode").val(),
                 ReagentCode: $("#ReagentCode").val(),
                 // Descriptions
-                Chem: $("#Chem").val() || $("#Chem option:selected").text(), // Use selected text if value is empty/custom
+                Chem: $("#Chem").val() || $("#Chem option:selected").text(), 
                 BottleType: $("#BottleType option:selected").text(),
                 RgtType: $("#RgtType option:selected").text(),
-                LotNumber: $("#LotNumber").val(),
-                SerialNumber: $("#SerialNumber").val(),
-                ExpDate: dateVal
+                LotNumber: $("#LotNumber").val().trim(),
+                SerialNumber: $("#SerialNumber").val().trim(),
+                ExpDate: $("#ExpDate").val().trim()
             };
 
             // Show loading state

@@ -9,7 +9,7 @@
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
@@ -25,35 +25,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Exclude test files and scripts from publish -->
-    <Content Remove="**\*Test*Results*.json" />
-    <Content Remove="**\TestInputExamples.json" />
-    <Content Remove="**\*.ps1" />
-    <Content Remove="**\*.bat" />
-    <Content Remove="**\*.md" />
-    <None Remove="**\*Test*Results*.json" />
-    <None Remove="**\TestInputExamples.json" />
-    <None Remove="**\*.ps1" />
-    <None Remove="**\*.bat" />
-    <None Remove="**\*.md" />
+    <!-- Exclude all non-essential files from being included or published -->
+    <Content Remove="**\*.py;**\*.txt;**\*.md;**\*.ps1;**\*.bat;**\*.gitignore;obj\**;bin\**;publish\**" />
+    <None Remove="**\*.py;**\*.txt;**\*.md;**\*.ps1;**\*.bat;**\*.gitignore;obj\**;bin\**;publish\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Exclude test files from publish output -->
-    <Content Update="**\*Test*Results*.json">
+    <!-- Ensure test-related JSON files are never copied to publish -->
+    <Content Update="**\*Test*Results*.json;**\TestInputExamples.json">
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
-    <Content Update="**\TestInputExamples.json">
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
-    </Content>
-    <Content Update="**\*.ps1">
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
-    </Content>
-    <Content Update="**\*.bat">
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
-    </Content>
-    <Content Update="**\*.md">
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    <!-- Explicitly keep necessary static assets -->
+    <Content Update="wwwroot\data\barcode_anchors.json">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
 

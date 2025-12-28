@@ -89,22 +89,28 @@ namespace ReagentBarcode.Services
                     int sampSVal = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
                     int deltaS = sVal - sampSVal;
 
-                    if (deltaS == 0) {
-                        pLotPart = samplePLot;
-                    } else {
-                        int lotLen = (midLen >= 3) ? 3 : midLen;
-                        int pLen = midLen - lotLen;
-                        string lotDigits = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray());
-                        string lotStr = lotDigits.PadLeft(lotLen, '0');
-                        if (lotStr.Length > lotLen) lotStr = lotStr[^lotLen..];
+                    int lotLen = (midLen >= 3) ? 3 : midLen;
+                    int pLen = midLen - lotLen;
+                    string lotDigits = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray());
+                    string lotStr = lotDigits.PadLeft(lotLen, '0');
+                    if (lotStr.Length > lotLen) lotStr = lotStr[^lotLen..];
 
-                        string pStr = "";
-                        if (pLen > 0) {
-                            string basePStr = samplePLot.Substring(0, pLen);
-                            if (int.TryParse(basePStr, out int baseP)) {
+                    string pStr = "";
+                    if (pLen > 0)
+                    {
+                        string basePStr = samplePLot.Substring(0, pLen);
+                        if (deltaS == 0)
+                        {
+                            pStr = basePStr;
+                        }
+                        else
+                        {
+                            if (int.TryParse(basePStr, out int baseP))
+                            {
                                 int p;
                                 if (pLen > 1 && Math.Abs(deltaS) < 20) p = baseP;
-                                else {
+                                else
+                                {
                                     int lastDigit = baseP % 10;
                                     int dynLast = (lastDigit + (deltaS % 10) * 3 + 100) % 10;
                                     p = (baseP / 10) * 10 + dynLast;
@@ -112,8 +118,8 @@ namespace ReagentBarcode.Services
                                 pStr = p.ToString().PadLeft(pLen, '0');
                             }
                         }
-                        pLotPart = pStr + lotStr;
                     }
+                    pLotPart = pStr + lotStr;
 
                     string samplePayload = sample.Full.Substring(0, totalLen - 1);
                     int sampleWSum = CalculateWeightedSum(samplePayload);

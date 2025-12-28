@@ -12,12 +12,16 @@ chem_map = {
 
 def parse_expiry(f):
     if len(f) < 11: return "01/01/2025"
+    # Prefix is usually first 5 chars. yyMMdd starts at index 5.
     yymmdd = f[5:11]
-    return f"{yymmdd[2:4]}/{yymmdd[4:6]}/20{yymmdd[0:2]}"
+    yy = yymmdd[0:2]
+    mm = yymmdd[2:4]
+    dd = yymmdd[4:6]
+    return f"{mm}/{dd}/20{yy}"
 
 def extract_lot(f):
-    # Logic: 1 checksum digit (last), 4 serial digits (before checksum)
-    # Lot is usually the 3 digits before the serial.
+    # Logic: Last char is checksum. 4 chars before that is serial.
+    # 3 chars before serial is lot.
     total = len(f)
     if total < 10: return "000"
     lot_end = total - 5
@@ -33,7 +37,7 @@ def extract_bottle(f):
     return "20 ml"
 
 def extract_serial(f):
-    # Extract the actual 4 digits used in the barcode string
+    # Extract the 4 digits before the checksum
     total = len(f)
     if total < 5: return "0000"
     return f[total-5:total-1]
@@ -62,10 +66,12 @@ try:
             exp = parse_expiry(f_code)
             lot = extract_lot(f_code)
             bottle = extract_bottle(f_code)
-            # Use the serial number as found in the barcode string itself to ensure we are testing the generation logic accurately
             serial = extract_serial(f_code)
             
-            out.write(f'                new({i+1}, "{name}", "{ic}", "{bottle}", "{rt}", "{lot}", "{serial}", "{exp}", "{f_code}"),\n')
+            # Escape chemical name for C# string
+            name_esc = name.replace('"', '\\"')
+            
+            out.write(f'                new({i+1}, "{name_esc}", "{ic}", "{bottle}", "{rt}", "{lot}", "{serial}", "{exp}", "{f_code}"),\n')
             count += 1
             
         out.write("            };\n")

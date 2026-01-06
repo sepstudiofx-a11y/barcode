@@ -286,7 +286,8 @@ namespace ReagentBarcode.Services
                     Width = 2000, 
                     Height = 500, 
                     Margin = 10, 
-                    PureBarcode = true 
+                    PureBarcode = true,
+                    ForceCodeset = Code128EncodingOptions.Codesets.C // CRITICAL: Force strictly numeric compact mode
                 };
                 
                 var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };

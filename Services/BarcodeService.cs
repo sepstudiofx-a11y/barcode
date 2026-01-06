@@ -10,6 +10,7 @@ using ZXing.OneD;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using ImageSharpImage = SixLabors.ImageSharp.Image;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -231,44 +232,81 @@ namespace ReagentBarcode.Services
         }
 
         public string GenerateBarcodeImage(string b) {
-            try {
-                var options = new Code128EncodingOptions { Width = 1200, Height = 360, Margin = 20, PureBarcode = true, ForceCodeset = Code128EncodingOptions.Codesets.C };
-                var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };
-                var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
-                using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-                return Convert.ToBase64String(ms.ToArray());
-            } catch { return ""; }
+            var bytes = GenerateBarcodeImageBytes(b);
+            return bytes != null ? Convert.ToBase64String(bytes) : "";
         }
 
         public byte[] GeneratePdf(List<BarcodeResult> i) {
-            QuestPDF.Settings.License = LicenseType.Community;
-            return Document.Create(c => c.Page(p => { 
-                p.Size(PageSizes.A4); p.Margin(1, Unit.Centimetre);
-                p.Content().PaddingVertical(10).Table(table => {
-                    table.ColumnsDefinition(columns => { columns.RelativeColumn(); columns.RelativeColumn(); columns.RelativeColumn(); });
-                    foreach (var x in i) { table.Cell().Padding(5).Element(e => ComposeLabel(e, x)); }
-                });
-            })).GeneratePdf();
+            try {
+                QuestPDF.Settings.License = LicenseType.Community;
+                QuestPDF.Settings.EnableDebugging = false;
+                
+                return Document.Create(c => c.Page(p => { 
+                    p.Size(PageSizes.A4); 
+                    p.Margin(1, Unit.Centimetre);
+                    p.Content().PaddingVertical(10).Table(table => {
+                        table.ColumnsDefinition(columns => { columns.RelativeColumn(); columns.RelativeColumn(); columns.RelativeColumn(); });
+                        foreach (var x in i) { table.Cell().Padding(5).Element(e => ComposeLabel(e, x)); }
+                    });
+                })).GeneratePdf();
+            }
+            catch (Exception ex) {
+                _logger.LogError($"PDF Generation Failed: {ex.Message}");
+                throw; // Rethrow to let Controller handle it
+            }
         }
 
         private void ComposeLabel(IContainer c, BarcodeResult i) {
             c.Border(0.5f).Padding(8).Column(col => {
                 col.Spacing(2);
                 col.Item().Row(r => { r.RelativeItem().Text(i.Chem).Bold().FontSize(8); r.RelativeItem().AlignRight().Text($"Lot:{i.LotNumber}").FontSize(7); });
-                col.Item().AlignCenter().MaxHeight(1.0f, Unit.Centimetre).Image(GenerateBarcodeImageVerbatim(i.BarcodeNumber!));
+                
+                var barcodeBytes = GenerateBarcodeImageBytes(i.BarcodeNumber!);
+                if (barcodeBytes != null && barcodeBytes.Length > 0)
+                {
+                    // Fixed height for consistency
+                    col.Item().AlignCenter().Height(1.2f, Unit.Centimetre).Image(barcodeBytes);
+                }
+                else
+                {
+                    col.Item().AlignCenter().Height(1.2f, Unit.Centimetre).Text("ERR").FontColor(Colors.Red.Medium).FontSize(8);
+                }
+                
                 col.Item().AlignCenter().Text(i.BarcodeNumber).FontSize(9).LetterSpacing(0.1f);
                 col.Item().Row(r => { r.RelativeItem().Text($"SN:{i.SerialNumber}").FontSize(6); r.RelativeItem().AlignRight().Text($"Exp:{i.ExpDate:MMM yyyy}").FontSize(6).Italic(); });
             });
         }
 
-        private byte[] GenerateBarcodeImageVerbatim(string b) {
+        private byte[]? GenerateBarcodeImageBytes(string b) {
+            if (string.IsNullOrEmpty(b)) return null;
             try {
-                var options = new Code128EncodingOptions { Width = 1000, Height = 250, Margin = 20, PureBarcode = true, ForceCodeset = Code128EncodingOptions.Codesets.C };
+                // Generate High-Res Image directly to ensure sharpness without manual scaling artifacts
+                // Width 2000 ensures that even with anti-aliasing, the bars are distinct enough for scanners.
+                var options = new Code128EncodingOptions { 
+                    Width = 2000, 
+                    Height = 500, 
+                    Margin = 10, 
+                    PureBarcode = true 
+                };
+                
                 var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };
-                var d = w.Write(b); using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
-                using var ms = new System.IO.MemoryStream(); img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+                var d = w.Write(b);
+                
+                if (d == null) return null;
+
+                using var img = ImageSharpImage.LoadPixelData<Rgba32>(d.Pixels, d.Width, d.Height);
+                using var ms = new System.IO.MemoryStream(); 
+                img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
                 return ms.ToArray();
-            } catch { return Array.Empty<byte>(); }
+            } 
+            catch (Exception ex) {
+                _logger.LogError($"Barcode Image Gen Failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private byte[] GenerateBarcodeImageVerbatim(string b) {
+            return GenerateBarcodeImageBytes(b) ?? Array.Empty<byte>();
         }
 
         private void AnalyzeCalibrationSlopes(List<BarcodeSample> samples)

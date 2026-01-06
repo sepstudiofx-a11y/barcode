@@ -7,8 +7,8 @@ namespace ReagentBarcode.Models
     {
         public static readonly List<ChemicalItem> Chemicals = new()
         {
-            new("UREA II GEN", "010", "UREA"),
-            new("TOTAL IgE", "074", "IgE")
+            new("UREA II GEN", "010", "UREA", "UREA IIGEN"),
+            new("IgE", "034", "TOTAL IgE")
         };
 
         public static readonly List<BottleOption> Bottles = new()

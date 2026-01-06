@@ -32,6 +32,10 @@ namespace ReagentBarcode.Services
             public int k; // P-delta slope for Cal
             public int lotSlope; // Lot-delta slope for Cal
             public int count;
+            
+            // New Slopes for P
+            public int pLotSlope; 
+            public int pDateSlope;
         }
 
         public BarcodeService(ILogger<BarcodeService> logger) { _logger = logger; }
@@ -111,7 +115,6 @@ namespace ReagentBarcode.Services
                 }
                 else
                 {
-                    // Logic for verified chemicals (IgE, UREA)
                     if (sample.Full.Length >= 5) {
                         currentPrefix = sample.Full.Substring(0, 5);
                     }
@@ -120,98 +123,73 @@ namespace ReagentBarcode.Services
                     string lotTarget = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray());
                     string lotStr = (lotTarget.Length >= lotLen) ? lotTarget[^lotLen..] : lotTarget.PadLeft(lotLen, '0');
 
-                    // SPECIAL HANDLING: IgE (034)
-                    // Analysis shows IgE consistently uses Simple Sum Mod 10 (Remainder)
-                    // (10 - Sum % 10) % 10
-                    if (ic == "034") 
-                    {
-                        // For IgE, we construct the body using the best sample's P-logic OR just use the fallback P-logic?
-                        // Let's use the sample's P-logic to get the middle part right, then force the Checksum.
-                        
-                        // Recalculate P based on sample delta logic (standard)
-                        int[] pS = { 3, 0, 3, 0 }; // Default
-                        string groupKey = sample.ItemCode + "_" + sample.RgtType;
-                        if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) { pS = slopes.pSlopes; }
-
-                        int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
-                        int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
-                        int sInputNum = int.Parse(s4);
-
-                        int pNewNum = pSampleNum;
-                        int tempSN = sInputNum; int tempSNSample = sSampleNum;
-                        for (int j = 0; j < 4; j++) {
-                            int d = (tempSN % 10) - (tempSNSample % 10);
-                            pNewNum = (pNewNum + pS[j] * d) % 10;
-                            tempSN /= 10; tempSNSample /= 10;
-                        }
-                        while (pNewNum < 0) pNewNum += 10;
-                        string pStr = pNewNum.ToString();
-
-                        pLotPart = pStr + lotStr;
-                        string cFinal = currentPrefix + dt + pLotPart + s4;
-                        
-                        // FORCE CHECKSUM: Simple Sum Mod 10
-                        // Sum digits, take mod 10, subtract from 10.
-                        int sumSimple = 0;
-                        foreach(char c in cFinal) sumSimple += (c - '0');
-                        int cs = (10 - (sumSimple % 10)) % 10;
-                        
-                        fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
+                    string groupKey = sample.ItemCode + "_" + sample.RgtType;
+                    int[] pS = { 3, 0, 3, 0 };
+                    int k = 1; int m = 0; 
+                    int lS = 0;
+                    int pLS = 0; // Lot Slope for P
+                    int pDS = 1; // Date Slope for P (Default 1)
+                    
+                    if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) {
+                        pS = slopes.pSlopes;
+                        k = slopes.k; 
+                        m = slopes.calSlopes[0];
+                        lS = slopes.lotSlope;
+                        pLS = slopes.pLotSlope;
+                        pDS = slopes.pDateSlope;
                     }
-                    else
-                    {
-                        // STANDARD LOGIC (UREA, etc.) - Depends on Anchor Calibration
-                        string groupKey = sample.ItemCode + "_" + sample.RgtType;
-                        int[] pS = { 3, 0, 3, 0 };
-                        int k = 1; int m = 0; 
-                        int lS = 0;
-                        
-                        if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) {
-                            pS = slopes.pSlopes;
-                            k = slopes.k; 
-                            m = slopes.calSlopes[0];
-                            lS = slopes.lotSlope;
-                        }
-                        
-                        int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
-                        int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
-                        int sInputNum = int.Parse(s4);
-                        int lotSampleNum = int.Parse(sample.Full.Substring(12, 3));
-                        int lotInputNum = int.Parse(lotStr);
+                    
+                    int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
+                    int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
+                    int sInputNum = int.Parse(s4);
+                    int lotSampleNum = int.Parse(sample.Full.Substring(12, 3));
+                    int lotInputNum = int.Parse(lotStr);
 
-                        int pNewNum = pSampleNum;
-                        int tempSN = sInputNum;
-                        int tempSNSample = sSampleNum;
-                        for (int j = 0; j < 4; j++) {
-                            int d = (tempSN % 10) - (tempSNSample % 10);
-                            pNewNum = (pNewNum + pS[j] * d) % 10;
-                            tempSN /= 10; tempSNSample /= 10;
-                        }
-                        while (pNewNum < 0) pNewNum += 10;
-                        string pStr = pNewNum.ToString();
+                    // Date Deltas
+                    string sampleDateStr = sample.Full.Substring(5, 6);
+                    int sampleDateSum = SumDigits(sampleDateStr);
+                    int inputDateSum = SumDigits(dt);
+                    int deltaDateSum = inputDateSum - sampleDateSum;
 
-                        int deltaP = pNewNum - pSampleNum; 
-                        int deltaSTensActual = (sInputNum / 10) - (sSampleNum / 10);
-                        int deltaLot = lotInputNum - lotSampleNum;
-                        
-                        int anchorCS = sample.Full.Last() - '0';
-                        int wAnchor = CalculateWeightedSum(sample.Full[..^1]);
-                        int anchorCal = (anchorCS + wAnchor) % 10;
-                        
-                        // If we have a perfect anchor (Same Lot), deltaLot is 0.
-                        // If we are extrapolating, we rely on lS.
-                        
-                        int targetCal = (anchorCal + k * deltaP + m * deltaSTensActual + lS * deltaLot) % 10;
-                        while (targetCal < 0) targetCal += 10;
-                        
-                        pLotPart = pStr + lotStr;
-                        string cFinal = currentPrefix + dt + pLotPart + s4;
-                        int currentWSum = CalculateWeightedSum(cFinal);
-                        int cs = (targetCal - currentWSum) % 10;
-                        if (cs < 0) cs += 10;
-                        
-                        fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
+                    int pNewNum = pSampleNum;
+                    int tempSN = sInputNum;
+                    int tempSNSample = sSampleNum;
+                    
+                    // SN Slope contributions
+                    for (int j = 0; j < 4; j++) {
+                        int d = (tempSN % 10) - (tempSNSample % 10);
+                        pNewNum = (pNewNum + pS[j] * d);
+                        tempSN /= 10; tempSNSample /= 10;
                     }
+                    // Lot Slope contribution
+                    int deltaLot = lotInputNum - lotSampleNum;
+                    pNewNum += (pLS * deltaLot);
+
+                    // Date Slope contribution
+                    pNewNum += (pDS * deltaDateSum);
+
+                    pNewNum %= 10;
+                    while (pNewNum < 0) pNewNum += 10;
+                    string pStr = pNewNum.ToString();
+
+                    int deltaP = pNewNum - pSampleNum; 
+                    int deltaSTensActual = (sInputNum / 10) - (sSampleNum / 10);
+                    // deltaLot is already calc
+                    
+                    int anchorCS = sample.Full.Last() - '0';
+                    int wAnchor = CalculateWeightedSum(sample.Full[..^1]);
+                    int anchorCal = (anchorCS + wAnchor) % 10;
+                    
+                    int targetCal = (anchorCal + k * deltaP + m * deltaSTensActual + lS * deltaLot) % 10;
+                    while (targetCal < 0) targetCal += 10;
+                    
+                    pLotPart = pStr + lotStr;
+                    string cFinal = currentPrefix + dt + pLotPart + s4;
+                    int currentWSum = CalculateWeightedSum(cFinal);
+                    int cs = (targetCal - currentWSum) % 10;
+                    if (cs < 0) cs += 10;
+                    
+                    fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
                 }
 
                 return new BarcodeResult {
@@ -222,6 +200,10 @@ namespace ReagentBarcode.Services
                     LotNumber = i.LotNumber, SerialNumber = s4, ExpDate = exp, GeneratedAt = DateTime.Now
                 };
             } catch (Exception ex) { return Fail(ex.Message); }
+        }
+
+        private int SumDigits(string s) {
+            return s.Sum(c => c - '0');
         }
 
         private int CalculateWeightedSum(string s)
@@ -248,7 +230,7 @@ namespace ReagentBarcode.Services
                 s.Full.Length >= 15 && 
                 s.Full.Substring(3, 1) == bc && 
                 s.Full.Substring(4, 1) == rc &&
-                s.Full.Substring(12, 3) == lotTarget).ToList();
+                s.Full.Substring(12, 3) == lotTarget).ToList(); // Exact Lot Match
 
             if (lotSamples.Any()) {
                 int targetSerial = int.Parse(s4);
@@ -311,7 +293,6 @@ namespace ReagentBarcode.Services
                 var barcodeBytes = GenerateBarcodeImageBytes(i.BarcodeNumber!);
                 if (barcodeBytes != null && barcodeBytes.Length > 0)
                 {
-                    // Fixed height for consistency
                     col.Item().AlignCenter().Height(1.2f, Unit.Centimetre).Image(barcodeBytes);
                 }
                 else
@@ -327,14 +308,12 @@ namespace ReagentBarcode.Services
         private byte[]? GenerateBarcodeImageBytes(string b) {
             if (string.IsNullOrEmpty(b)) return null;
             try {
-                // Generate High-Res Image directly to ensure sharpness without manual scaling artifacts
-                // Width 2000 ensures that even with anti-aliasing, the bars are distinct enough for scanners.
                 var options = new Code128EncodingOptions { 
                     Width = 2000, 
                     Height = 500, 
-                    Margin = 10, 
+                    Margin = 60, 
                     PureBarcode = true,
-                    ForceCodeset = Code128EncodingOptions.Codesets.C // CRITICAL: Force strictly numeric compact mode
+                    ForceCodeset = Code128EncodingOptions.Codesets.C 
                 };
                 
                 var w = new BarcodeWriterPixelData { Format = BarcodeFormat.CODE_128, Options = options };
@@ -366,37 +345,66 @@ namespace ReagentBarcode.Services
                     if (s.Full.Length < 20) return null;
                     int pVal = s.Full[11] - '0', sVal = int.Parse(new string(s.Serial.Where(char.IsDigit).ToArray())), lotVal = int.Parse(s.Full.Substring(12, 3)), csVal = s.Full.Last() - '0';
                     int wSum = CalculateWeightedSum(s.Full[..^1]), calVal = (csVal + wSum) % 10;
-                    return new { p = pVal, s = sVal, cal = calVal, lot = lotVal, snDigits = new[] { sVal % 10, (sVal / 10) % 10, (sVal / 100) % 10, (sVal / 1000) % 10 }, sFT = sVal / 10 };
+                    string dateStr = s.Full.Substring(5, 6);
+                    int dateSum = SumDigits(dateStr);
+                    return new { p = pVal, s = sVal, cal = calVal, lot = lotVal, dateS = dateSum, snDigits = new[] { sVal % 10, (sVal / 10) % 10, (sVal / 100) % 10, (sVal / 1000) % 10 }, sFT = sVal / 10 };
                 }).Where(x => x != null).ToList();
 
                 if (valid.Count < 2) continue;
-                var pVotes = new Dictionary<(int, int, int, int), int>();
+                
+                var pVotes = new Dictionary<(int, int, int, int, int, int), int>(); // p0, p2, pLot, pDate
+                
                 for (int i = 0; i < valid.Count; i++) {
                     for (int j = i + 1; j < valid.Count; j++) {
                         int dp = (valid[j]!.p - valid[i]!.p + 10) % 10;
-                        for (int p0 = 0; p0 < 10; p0++) for (int p2 = 0; p2 < 10; p2++) {
-                            int pred = (p0 * (valid[j]!.snDigits[0] - valid[i]!.snDigits[0]) + p2 * (valid[j]!.snDigits[2] - valid[i]!.snDigits[2])) % 10;
-                            if ((pred + 10) % 10 == dp) pVotes[(p0, 0, p2, 0)] = pVotes.GetValueOrDefault((p0, 0, p2, 0)) + 1;
+                        int dL = valid[j]!.lot - valid[i]!.lot;
+                        int dD = valid[j]!.dateS - valid[i]!.dateS;
+                        
+                        for (int p0 = 0; p0 < 10; p0++) 
+                        for (int p2 = 0; p2 < 10; p2++) 
+                        for (int pL = 0; pL < 10; pL++) 
+                        for (int pD = 0; pD < 10; pD++) {
+                            int pred = (p0 * (valid[j]!.snDigits[0] - valid[i]!.snDigits[0]) + 
+                                        p2 * (valid[j]!.snDigits[2] - valid[i]!.snDigits[2]) +
+                                        pL * dL +
+                                        pD * dD) % 10;
+                            if ((pred + 1000) % 10 == dp) {
+                                var key = (p0, 0, p2, 0, pL, pD);
+                                pVotes[key] = pVotes.GetValueOrDefault(key) + 1;
+                            }
                         }
                     }
                 }
-                var bestP = pVotes.OrderByDescending(x => x.Value).ThenByDescending(x => x.Key == (3, 0, 3, 0)).FirstOrDefault().Key;
-                if (!pVotes.Any()) bestP = (3, 0, 3, 0);
+                
+                var bestPSet = pVotes.OrderByDescending(x => x.Value).FirstOrDefault().Key;
+                if (!pVotes.Any()) bestPSet = (3, 0, 3, 0, 0, 1);
 
                 var cVotes = new Dictionary<(int k, int m, int l), int>();
                 for (int i = 0; i < valid.Count; i++) {
                     for (int j = i + 1; j < valid.Count; j++) {
-                        int dp = (valid[j]!.p - valid[i]!.p + 10) % 10, dsT = valid[j]!.sFT - valid[i]!.sFT, dL = valid[j]!.lot - valid[i]!.lot, dc = (valid[j]!.cal - valid[i]!.cal + 10) % 10;
-                        for (int ck = 0; ck < 10; ck++) for (int cm = 0; cm < 10; cm++) foreach (int cl in new[] { 0, 1, 9 }) {
+                        int dp = (valid[j]!.p - valid[i]!.p + 10) % 10;
+                        int dsT = valid[j]!.sFT - valid[i]!.sFT; 
+                        int dL = valid[j]!.lot - valid[i]!.lot;
+                        int dc = (valid[j]!.cal - valid[i]!.cal + 10) % 10;
+                        for (int ck = 0; ck < 10; ck++) for (int cm = 0; cm < 10; cm++) foreach (int cl in new[] { 0, 1, 9, 7, 3 }) { 
                             if ((ck * dp + cm * dsT + cl * dL) % 10 == dc) cVotes[(ck, cm, cl)] = cVotes.GetValueOrDefault((ck, cm, cl)) + (dL == 0 ? 5 : 1);
                         }
                     }
                 }
-                if (cVotes.Any()) {
-                    var b = cVotes.OrderByDescending(x => x.Value).First().Key;
-                    _calibrationSlopesExtended[g.Key] = new Slopes { pSlopes = new[] { bestP.Item1, bestP.Item2, bestP.Item3, bestP.Item4 }, calSlopes = new[] { b.m }, k = b.k, lotSlope = b.l, count = valid.Count };
-                }
+                var b = (1, 0, 0);
+                if (cVotes.Any()) b = cVotes.OrderByDescending(x => x.Value).First().Key;
+
+                _calibrationSlopesExtended[g.Key] = new Slopes { 
+                    pSlopes = new[] { bestPSet.Item1, bestPSet.Item2, bestPSet.Item3, bestPSet.Item4 }, 
+                    calSlopes = new[] { b.Item2 }, 
+                    k = b.Item1, 
+                    lotSlope = b.Item3, 
+                    pLotSlope = bestPSet.Item5,
+                    pDateSlope = bestPSet.Item6,
+                    count = valid.Count 
+                };
             }
+            
             var avgP = new[] { 3, 0, 3, 0 }; int avgK = 1, avgM = 0, avgL = 0;
             foreach (var s in BarcodeSample.AllSamples.Select(x => x.ItemCode + "_" + x.RgtType).Distinct()) {
                 if (!_calibrationSlopesExtended.ContainsKey(s)) _calibrationSlopesExtended[s] = new Slopes { pSlopes = avgP, calSlopes = new[] { avgM }, k = avgK, lotSlope = avgL, count = 0 };

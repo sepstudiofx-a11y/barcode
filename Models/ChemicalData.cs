@@ -7,33 +7,8 @@ namespace ReagentBarcode.Models
     {
         public static readonly List<ChemicalItem> Chemicals = new()
         {
-            new("GLUCOSE", "001", "GLUC"),
-            new("CHOLESTEROL", "002", "CHOL"),
-            new("TRIGLYCERIDES", "003", "TG"),
-            new("ALBUMIN", "004", "ALB"),
-            new("TOTAL PROTEIN", "005", "TP"),
-            new("TOTAL BILIRUBIN", "006", "BIL T"),
-            new("BILIRUBIN DIRECT", "007", "BIL D"),
-            new("UA II GEN", "009", "UA", "URIC ACID"),
             new("UREA II GEN", "010", "UREA"),
-            new("MAGNESIUM", "012", "MG"),
-            new("PHOSPHORUS", "013", "PHOS"),
-            new("ALAT", "015", "ALT"),
-            new("ASAT", "016", "AST"),
-            new("AMYLASE", "017", "AMYL"),
-            new("ALP", "018"),
-            new("CK", "019"),
-            new("LDH", "020"),
-            new("GGT", "022"),
-            new("GTT", "024"),
-            new("HDL DIRECT", "025", "HDL", "HDL D"),
-            new("LDL DIRECT", "026", "LDL", "LDL D"),
-            new("CRP ULTRA", "027", "CRP", "CRP U"),
-            new("RF", "031"),
-            new("TOTAL IgE", "074", "IgE"),
-            new("CALCIUM ARSENAZO", "059", "CA", "CA ARS"),
-            new("HbA1c DIRECT", "061", "HBA1C", "HBA1C D", "HbA1c D"),
-            new("CREA ENZ", "071", "CREA", "CREATININE")
+            new("TOTAL IgE", "074", "IgE")
         };
 
         public static readonly List<BottleOption> Bottles = new()

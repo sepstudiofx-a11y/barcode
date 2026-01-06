@@ -102,6 +102,7 @@ namespace ReagentBarcode.Services
 
                 if (sample == null)
                 {
+                    // Fallback logic for unknown chemicals without anchors
                     pLotPart = ((int.Parse(s4[^1..]) * 3 + 5) % 10).ToString() + new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray()).PadLeft(3, '0');
                     string cFinal = currentPrefix + dt + pLotPart + s4;
                     int weight = CalculateWeightedSum(cFinal);
@@ -110,6 +111,7 @@ namespace ReagentBarcode.Services
                 }
                 else
                 {
+                    // Logic for verified chemicals (IgE, UREA)
                     if (sample.Full.Length >= 5) {
                         currentPrefix = sample.Full.Substring(0, 5);
                     }
@@ -118,53 +120,98 @@ namespace ReagentBarcode.Services
                     string lotTarget = new string((i.LotNumber ?? "0").Where(char.IsDigit).ToArray());
                     string lotStr = (lotTarget.Length >= lotLen) ? lotTarget[^lotLen..] : lotTarget.PadLeft(lotLen, '0');
 
-                    string groupKey = sample.ItemCode + "_" + sample.RgtType;
-                    int[] pS = { 3, 0, 3, 0 };
-                    int k = 1; int m = 0; 
-                    int lS = 0;
-                    
-                    if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) {
-                        pS = slopes.pSlopes;
-                        k = slopes.k; 
-                        m = slopes.calSlopes[0];
-                        lS = slopes.lotSlope;
-                    }
-                    
-                    int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
-                    int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
-                    int sInputNum = int.Parse(s4);
-                    int lotSampleNum = int.Parse(sample.Full.Substring(12, 3));
-                    int lotInputNum = int.Parse(lotStr);
+                    // SPECIAL HANDLING: IgE (034)
+                    // Analysis shows IgE consistently uses Simple Sum Mod 10 (Remainder)
+                    // (10 - Sum % 10) % 10
+                    if (ic == "034") 
+                    {
+                        // For IgE, we construct the body using the best sample's P-logic OR just use the fallback P-logic?
+                        // Let's use the sample's P-logic to get the middle part right, then force the Checksum.
+                        
+                        // Recalculate P based on sample delta logic (standard)
+                        int[] pS = { 3, 0, 3, 0 }; // Default
+                        string groupKey = sample.ItemCode + "_" + sample.RgtType;
+                        if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) { pS = slopes.pSlopes; }
 
-                    int pNewNum = pSampleNum;
-                    int tempSN = sInputNum;
-                    int tempSNSample = sSampleNum;
-                    for (int j = 0; j < 4; j++) {
-                        int d = (tempSN % 10) - (tempSNSample % 10);
-                        pNewNum = (pNewNum + pS[j] * d) % 10;
-                        tempSN /= 10; tempSNSample /= 10;
-                    }
-                    while (pNewNum < 0) pNewNum += 10;
-                    string pStr = pNewNum.ToString();
+                        int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
+                        int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
+                        int sInputNum = int.Parse(s4);
 
-                    int deltaP = pNewNum - pSampleNum; 
-                    int deltaSTensActual = (sInputNum / 10) - (sSampleNum / 10);
-                    int deltaLot = lotInputNum - lotSampleNum;
-                    
-                    int anchorCS = sample.Full.Last() - '0';
-                    int wAnchor = CalculateWeightedSum(sample.Full[..^1]);
-                    int anchorCal = (anchorCS + wAnchor) % 10;
-                    
-                    int targetCal = (anchorCal + k * deltaP + m * deltaSTensActual + lS * deltaLot) % 10;
-                    while (targetCal < 0) targetCal += 10;
-                    
-                    pLotPart = pStr + lotStr;
-                    string cFinal = currentPrefix + dt + pLotPart + s4;
-                    int currentWSum = CalculateWeightedSum(cFinal);
-                    int cs = (targetCal - currentWSum) % 10;
-                    if (cs < 0) cs += 10;
-                    
-                    fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
+                        int pNewNum = pSampleNum;
+                        int tempSN = sInputNum; int tempSNSample = sSampleNum;
+                        for (int j = 0; j < 4; j++) {
+                            int d = (tempSN % 10) - (tempSNSample % 10);
+                            pNewNum = (pNewNum + pS[j] * d) % 10;
+                            tempSN /= 10; tempSNSample /= 10;
+                        }
+                        while (pNewNum < 0) pNewNum += 10;
+                        string pStr = pNewNum.ToString();
+
+                        pLotPart = pStr + lotStr;
+                        string cFinal = currentPrefix + dt + pLotPart + s4;
+                        
+                        // FORCE CHECKSUM: Simple Sum Mod 10
+                        // Sum digits, take mod 10, subtract from 10.
+                        int sumSimple = 0;
+                        foreach(char c in cFinal) sumSimple += (c - '0');
+                        int cs = (10 - (sumSimple % 10)) % 10;
+                        
+                        fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
+                    }
+                    else
+                    {
+                        // STANDARD LOGIC (UREA, etc.) - Depends on Anchor Calibration
+                        string groupKey = sample.ItemCode + "_" + sample.RgtType;
+                        int[] pS = { 3, 0, 3, 0 };
+                        int k = 1; int m = 0; 
+                        int lS = 0;
+                        
+                        if (_calibrationSlopesExtended.TryGetValue(groupKey, out var slopes)) {
+                            pS = slopes.pSlopes;
+                            k = slopes.k; 
+                            m = slopes.calSlopes[0];
+                            lS = slopes.lotSlope;
+                        }
+                        
+                        int pSampleNum = (sample.Full.Length >= 12) ? sample.Full[11] - '0' : 0;
+                        int sSampleNum = int.Parse(new string(sample.Serial.Where(char.IsDigit).ToArray()));
+                        int sInputNum = int.Parse(s4);
+                        int lotSampleNum = int.Parse(sample.Full.Substring(12, 3));
+                        int lotInputNum = int.Parse(lotStr);
+
+                        int pNewNum = pSampleNum;
+                        int tempSN = sInputNum;
+                        int tempSNSample = sSampleNum;
+                        for (int j = 0; j < 4; j++) {
+                            int d = (tempSN % 10) - (tempSNSample % 10);
+                            pNewNum = (pNewNum + pS[j] * d) % 10;
+                            tempSN /= 10; tempSNSample /= 10;
+                        }
+                        while (pNewNum < 0) pNewNum += 10;
+                        string pStr = pNewNum.ToString();
+
+                        int deltaP = pNewNum - pSampleNum; 
+                        int deltaSTensActual = (sInputNum / 10) - (sSampleNum / 10);
+                        int deltaLot = lotInputNum - lotSampleNum;
+                        
+                        int anchorCS = sample.Full.Last() - '0';
+                        int wAnchor = CalculateWeightedSum(sample.Full[..^1]);
+                        int anchorCal = (anchorCS + wAnchor) % 10;
+                        
+                        // If we have a perfect anchor (Same Lot), deltaLot is 0.
+                        // If we are extrapolating, we rely on lS.
+                        
+                        int targetCal = (anchorCal + k * deltaP + m * deltaSTensActual + lS * deltaLot) % 10;
+                        while (targetCal < 0) targetCal += 10;
+                        
+                        pLotPart = pStr + lotStr;
+                        string cFinal = currentPrefix + dt + pLotPart + s4;
+                        int currentWSum = CalculateWeightedSum(cFinal);
+                        int cs = (targetCal - currentWSum) % 10;
+                        if (cs < 0) cs += 10;
+                        
+                        fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
+                    }
                 }
 
                 return new BarcodeResult {

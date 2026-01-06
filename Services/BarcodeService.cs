@@ -79,7 +79,7 @@ namespace ReagentBarcode.Services
             return _cachedSamples;
         }
 
-        public BarcodeResult GenerateBarcode(ReagentInput i)
+        public BarcodeResult GenerateBarcode(ReagentInput i, bool generateImage = true)
         {
             try {
                 if (i == null) return Fail("Input required");
@@ -170,7 +170,7 @@ namespace ReagentBarcode.Services
                 return new BarcodeResult {
                     Success = true, 
                     BarcodeNumber = fullBarcode, 
-                    BarcodeImageBase64 = GenerateBarcodeImage(fullBarcode),
+                    BarcodeImageBase64 = generateImage ? GenerateBarcodeImage(fullBarcode) : "",
                     Chem = i.Chem, GenItemCode = currentPrefix.Substring(0,3), GenBottleCode = currentPrefix.Length>=4 ? currentPrefix.Substring(3,1) : "1", GenReagentCode = currentPrefix.Length>=5 ? currentPrefix.Substring(4,1) : "1",
                     LotNumber = i.LotNumber, SerialNumber = s4, ExpDate = exp, GeneratedAt = DateTime.Now
                 };

@@ -1,0 +1,70 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|c:\\users\\mimmi\\desktop\\barcodegen\\muruga\\models\\chemicaldata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|solutionrelative:models\\chemicaldata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|c:\\users\\mimmi\\desktop\\barcodegen\\muruga\\views\\home\\index.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|solutionrelative:views\\home\\index.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|c:\\users\\mimmi\\desktop\\barcodegen\\muruga\\controllers\\barcodecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DC8E73C9-1068-A7B2-FDCB-FC23F5F5814F}|ReagentBarcode.csproj|solutionrelative:controllers\\barcodecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "ChemicalData.cs",
+              "DocumentMoniker": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Models\\ChemicalData.cs",
+              "RelativeDocumentMoniker": "Models\\ChemicalData.cs",
+              "ToolTip": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Models\\ChemicalData.cs",
+              "RelativeToolTip": "Models\\ChemicalData.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-12-19T10:09:12.764Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Index.cshtml",
+              "DocumentMoniker": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Views\\Home\\Index.cshtml",
+              "RelativeDocumentMoniker": "Views\\Home\\Index.cshtml",
+              "ToolTip": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Views\\Home\\Index.cshtml",
+              "RelativeToolTip": "Views\\Home\\Index.cshtml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAALcAAAARAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-15T18:28:59.666Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "BarcodeController.cs",
+              "DocumentMoniker": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Controllers\\BarcodeController.cs",
+              "RelativeDocumentMoniker": "Controllers\\BarcodeController.cs",
+              "ToolTip": "C:\\Users\\mimmi\\Desktop\\barcodeGen\\Muruga\\Controllers\\BarcodeController.cs",
+              "RelativeToolTip": "Controllers\\BarcodeController.cs",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAcwFcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-12-15T18:26:56.796Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

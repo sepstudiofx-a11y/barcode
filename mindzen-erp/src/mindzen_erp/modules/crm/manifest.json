@@ -1,0 +1,71 @@
+{
+  "name": "crm",
+  "version": "1.0.0",
+  "status": "stable",
+  "display_name": "CRM (Sales & Opportunities)",
+  "description": "Manage leads, opportunities, and sales pipeline",
+  "author": "MindZen ERP",
+  "category": "Sales",
+  "depends": [],
+  "installable": true,
+  "auto_install": false,
+  "models": [
+    "lead",
+    "opportunity",
+    "pipeline"
+  ],
+  "api_routes": [
+    {
+      "path": "/api/crm/leads",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/crm/leads/{id}",
+      "methods": [
+        "GET",
+        "PUT",
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/api/crm/opportunities",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/api/crm/opportunities/{id}",
+      "methods": [
+        "GET",
+        "PUT",
+        "DELETE"
+      ]
+    }
+  ],
+  "ui_routes": [
+    {
+      "path": "/crm/leads",
+      "view": "leads_list"
+    },
+    {
+      "path": "/crm/opportunities",
+      "view": "opportunities_kanban"
+    },
+    {
+      "path": "/crm/dashboard",
+      "view": "dashboard"
+    }
+  ],
+  "permissions": [
+    "crm.lead.read",
+    "crm.lead.write",
+    "crm.lead.delete",
+    "crm.opportunity.read",
+    "crm.opportunity.write",
+    "crm.opportunity.delete"
+  ]
+}

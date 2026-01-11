@@ -1,0 +1,2 @@
+Testing Git push to GitHub repository
+MindZen ERP - Initial setup verification

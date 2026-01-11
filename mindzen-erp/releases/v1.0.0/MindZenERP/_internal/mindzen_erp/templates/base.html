@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindZen ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Odoo-like colors and spacing */
+        :root {
+            --odoo-purple: #714B67;
+            --odoo-dark: #017e84;
+            --sidebar-width: 80px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .sidebar {
+            background-color: #3b4352;
+            color: white;
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+
+        .sidebar-item {
+            padding: 15px 0;
+            text-align: center;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .sidebar-item:hover,
+        .sidebar-item.active {
+            background-color: #2b323f;
+            opacity: 1;
+            border-left: 3px solid #00a09d;
+        }
+
+        .sidebar-item i {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-item span {
+            font-size: 10px;
+            display: block;
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            background: #f9f9f9;
+            min-height: 100vh;
+        }
+
+        /* Top Navigation Bar */
+        .top-nav {
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 50px;
+        }
+
+        .breadcrumb {
+            font-size: 18px;
+            font-weight: 500;
+            color: #444;
+        }
+
+        /* Control Panel (Filters, Group By, Search) */
+        .control-panel {
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-primary {
+            background-color: var(--odoo-purple);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn-primary:hover {
+            background-color: #5d3d54;
+        }
+
+        /* Data Tables */
+        .o_list_view {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .o_list_view th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #dee2e6;
+            color: #666;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .o_list_view td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            color: #444;
+            font-size: 13px;
+        }
+
+        .o_list_view tr:hover {
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-new {
+            background: #e0f2f1;
+            color: #00695c;
+        }
+
+        .badge-qualified {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <a href="/" class="sidebar-item {% if active_module == 'dashboard' %}active{% endif %}">
+            <i class="fa-solid fa-grip-apps"></i>
+            <span>Apps</span>
+        </a>
+        <a href="/crm/leads" class="sidebar-item {% if active_module == 'crm' %}active{% endif %}">
+            <i class="fa-solid fa-handshake"></i>
+            <span>CRM</span>
+        </a>
+        <div class="sidebar-item">
+            <i class="fa-solid fa-boxes-stacked"></i>
+            <span>Inventory</span>
+        </div>
+        <a href="/sales/quotations" class="sidebar-item {% if active_module == 'sales' %}active{% endif %}">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+            <span>Sales</span>
+        </a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+</body>
+
+</html>

@@ -1,6 +1,15 @@
 # MindZen ERP
 
-A Python-based ERP (Enterprise Resource Planning) system.
+A scalable, modular Python ERP platform with microkernel architecture and pluggable modules for small-scale industry.
+
+## Features
+
+✨ **Microkernel Architecture** - Lightweight core with pluggable modules  
+🔌 **Module System** - Dynamic module discovery and loading  
+📡 **Event Bus** - Pub/sub communication between modules  
+🪝 **Hooks System** - Conditional module integration  
+🌍 **Multi-Country Support** - Metadata-driven configuration  
+🏢 **Multi-Tenant Ready** - Schema isolation per customer  
 
 ## Project Structure
 
@@ -8,39 +17,82 @@ A Python-based ERP (Enterprise Resource Planning) system.
 mindzen-erp/
 ├── src/
 │   └── mindzen_erp/
-│       └── __init__.py
+│       ├── core/              # Core engine
+│       │   ├── engine.py      # Main microkernel
+│       │   ├── module_registry.py
+│       │   ├── event_bus.py
+│       │   ├── hooks.py
+│       │   └── config.py
+│       ├── modules/           # Pluggable modules
+│       │   ├── crm/
+│       │   ├── sales/
+│       │   ├── inventory/
+│       │   ├── purchase/
+│       │   ├── manufacturing/
+│       │   └── accounting/
+│       └── main.py            # Demo script
+├── config/
+│   ├── countries/             # Country-specific configs
+│   └── metadata/              # Field metadata
 ├── tests/
-│   └── __init__.py
-├── requirements.txt
-├── README.md
-└── .gitignore
+└── requirements.txt
 ```
 
-## Setup
+## Quick Start
 
-1. Create a virtual environment:
+### 1. Setup Environment
+
 ```bash
+# Create virtual environment
 python -m venv venv
-```
 
-2. Activate the virtual environment:
-```bash
-# Windows
+# Activate (Windows)
 venv\Scripts\activate
 
-# Linux/Mac
+# Activate (Linux/Mac)
 source venv/bin/activate
-```
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Usage
+### 2. Run Demo
 
-Coming soon...
+```bash
+python -m mindzen_erp.main
+```
 
-## Development
+## Core Engine Demo
 
-This project is currently in initial setup phase.
+The demo script demonstrates:
+- Engine initialization
+- Configuration management
+- Module discovery
+- Event bus pub/sub
+- Hook system execution
+
+## Architecture
+
+Based on Odoo-like microkernel design:
+
+- **Engine (Microkernel)**: Coordinates all services
+- **Module Registry**: Discovers and loads modules with dependency resolution
+- **Event Bus**: Decoupled module communication
+- **Hook Manager**: Conditional cross-module integration
+- **Config Manager**: Hierarchical configuration with country overrides
+
+## Development Status
+
+- [x] Core engine implementation
+- [x] Module registry with dependency resolution
+- [x] Event bus for pub/sub messaging
+- [x] Hook system for module integration
+- [x] Configuration management
+- [ ] ORM/Data layer
+- [ ] Authentication & RBAC
+- [ ] Multi-tenant schema router
+- [ ] Core modules (CRM, Sales, Inventory, etc.)
+
+## License
+
+MIT License

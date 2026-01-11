@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Top Navigation -->
+<div class="top-nav">
+    <div class="breadcrumb">
+        <span class="text-gray-500">CRM</span> / Leads
+    </div>
+    <div class="user-menu">
+        <img src="https://ui-avatars.com/api/?name=Admin" class="w-8 h-8 rounded-full">
+    </div>
+</div>
+
+<!-- Control Panel -->
+<div class="control-panel">
+    <div class="buttons">
+        <a href="/crm/leads/new" class="btn-primary inline-block">New</a>
+    </div>
+    <div class="search-bar">
+        <input type="text" placeholder="Search..." class="border rounded px-3 py-1 text-sm w-64">
+    </div>
+</div>
+
+<!-- List View -->
+<div class="p-4">
+    <div class="bg-white shadow-sm rounded border">
+        <table class="o_list_view">
+            <thead>
+                <tr>
+                    <th class="w-10"><input type="checkbox"></th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Exp. Revenue</th>
+                    <th>Salesperson</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if not leads %}
+                <tr>
+                    <td colspan="7" class="text-center py-8 text-gray-400">
+                        No leads found. Click 'New' to create one.
+                    </td>
+                </tr>
+                {% endif %}
+
+                {% for lead in leads %}
+                <tr onclick="window.location='/crm/leads/{{ lead.id }}'">
+                    <td><input type="checkbox" onclick="event.stopPropagation()"></td>
+                    <td class="font-medium text-purple-700">{{ lead.name }}</td>
+                    <td>{{ lead.email }}</td>
+                    <td>{{ lead.company }}</td>
+                    <td>
+                        <span class="badge badge-{{ lead.status }}">{{ lead.status|title }}</span>
+                    </td>
+                    <td>${{ lead.expected_revenue }}</td>
+                    <td>Admin</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

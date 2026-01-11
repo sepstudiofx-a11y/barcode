@@ -1,0 +1,28 @@
+{
+    "name": "sales",
+    "version": "1.0.0",
+    "status": "stable",
+    "display_name": "Sales",
+    "description": "Quotations, Sales Orders, and Invoicing",
+    "author": "MindZen ERP",
+    "category": "Sales",
+    "depends": [
+        "crm"
+    ],
+    "installable": true,
+    "auto_install": false,
+    "models": [
+        "sale_order",
+        "sale_order_line"
+    ],
+    "ui_routes": [
+        {
+            "path": "/sales/quotations",
+            "view": "quotations_list"
+        },
+        {
+            "path": "/sales/orders",
+            "view": "orders_list"
+        }
+    ]
+}

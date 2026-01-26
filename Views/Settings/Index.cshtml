@@ -1,0 +1,128 @@
+@model ReagentBarcode.Controllers.ConnectionSettings
+@{
+    ViewData["Title"] = "SQL Connectivity Settings";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card glass-card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-database me-2"></i>SQL Connectivity Settings</h4>
+                </div>
+                <div class="card-body">
+                    <form id="settingsForm">
+                        <div class="mb-4">
+                            <label class="form-label">SQL Server Name</label>
+                            <input type="text" class="form-control" name="Server" value="@Model.Server" placeholder="e.g. LAPTOP-SCILBVGM\LOCALDB#8598DA7B">
+                            <small class="text-white-50">Local SQL Server or Instance Name</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Database Name</label>
+                            <input type="text" class="form-control" name="Database" value="@Model.Database" placeholder="e.g. BA80">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label d-block">Authentication Mode</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="IntegratedSecurity" id="winAuth" value="true" @(Model.IntegratedSecurity ? "checked" : "")>
+                                <label class="form-check-label text-white" for="winAuth">Windows Authentication</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="IntegratedSecurity" id="sqlAuth" value="false" @(!Model.IntegratedSecurity ? "checked" : "")>
+                                <label class="form-check-label text-white" for="sqlAuth">SQL Server Authentication</label>
+                            </div>
+                        </div>
+
+                        <div id="sqlAuthFields" style="display: @(Model.IntegratedSecurity ? "none" : "block")">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" class="form-control" name="Username" value="@Model.Username">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Password</label>
+                                    <input type="password" class="form-control" name="Password" value="@Model.Password">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-3">
+                            <button type="button" id="testBtn" class="btn btn-outline-secondary w-50">
+                                <i class="fas fa-plug me-2"></i>Test Connection
+                            </button>
+                            <button type="button" id="saveBtn" class="btn btn-primary w-50">
+                                <i class="fas fa-save me-2"></i>Save Settings
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="statusMessage" class="mt-4 alert d-none" role="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Toggle SQL Auth fields
+            $('input[name="IntegratedSecurity"]').change(function() {
+                if ($('#sqlAuth').is(':checked')) {
+                    $('#sqlAuthFields').slideDown();
+                } else {
+                    $('#sqlAuthFields').slideUp();
+                }
+            });
+
+            $('#testBtn').click(function() {
+                const formData = $('#settingsForm').serialize();
+                showStatus('Testing connection...', 'info');
+                
+                $.post('@Url.Action("TestConnection", "Settings")', formData, function(res) {
+                    if (res.success) {
+                        showStatus(res.message, 'success');
+                    } else {
+                        showStatus(res.message, 'danger');
+                    }
+                });
+            });
+
+            $('#saveBtn').click(function() {
+                const formData = $('#settingsForm').serialize();
+                showStatus('Saving settings...', 'info');
+
+                $.post('@Url.Action("Save", "Settings")', formData, function(res) {
+                    if (res.success) {
+                        showStatus(res.message, 'success');
+                    } else {
+                        showStatus(res.message, 'danger');
+                    }
+                });
+            });
+
+            function showStatus(msg, type) {
+                const $msg = $('#statusMessage');
+                $msg.removeClass('d-none alert-info alert-success alert-danger')
+                    .addClass('alert-' + type)
+                    .html(msg);
+            }
+        });
+    </script>
+
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        }
+        
+        .form-check-input:checked {
+            background-color: #f59e0b;
+            border-color: #f59e0b;
+        }
+    </style>
+}

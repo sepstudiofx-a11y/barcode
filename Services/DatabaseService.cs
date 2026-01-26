@@ -16,8 +16,45 @@ namespace ReagentBarcode.Services
 
         public DatabaseService(IConfiguration configuration, ILogger<DatabaseService> logger)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             _logger = logger;
+            
+            // Try load dynamic settings first
+            string settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConnectionSettings.json");
+            if (System.IO.File.Exists(settingsPath))
+            {
+                try
+                {
+                    var json = System.IO.File.ReadAllText(settingsPath);
+                    var settings = System.Text.Json.JsonSerializer.Deserialize<dynamic>(json);
+                    
+                    var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
+                    {
+                        DataSource = settings.GetProperty("Server").GetString(),
+                        InitialCatalog = settings.GetProperty("Database").GetString(),
+                        IntegratedSecurity = settings.GetProperty("IntegratedSecurity").GetBoolean(),
+                        TrustServerCertificate = true,
+                        MultipleActiveResultSets = true
+                    };
+
+                    if (!builder.IntegratedSecurity)
+                    {
+                        builder.UserID = settings.GetProperty("Username").GetString();
+                        builder.Password = settings.GetProperty("Password").GetString();
+                    }
+                    
+                    _connectionString = builder.ConnectionString;
+                    _logger.LogInformation("Using dynamic SQL connection settings.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Failed to load dynamic settings: {ex.Message}. Falling back to appsettings.json.");
+                    _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                }
+            }
+            else
+            {
+                _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            }
         }
 
         public bool RegisterReagent(BarcodeResult barcodeResult)

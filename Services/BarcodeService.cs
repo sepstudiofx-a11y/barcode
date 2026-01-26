@@ -38,7 +38,13 @@ namespace ReagentBarcode.Services
             public int pDateSlope;
         }
 
-        public BarcodeService(ILogger<BarcodeService> logger) { _logger = logger; }
+        private readonly DatabaseService _dbService;
+
+        public BarcodeService(ILogger<BarcodeService> logger, DatabaseService dbService) 
+        { 
+            _logger = logger; 
+            _dbService = dbService;
+        }
 
         private List<BarcodeSample> GetSamples()
         {
@@ -192,13 +198,23 @@ namespace ReagentBarcode.Services
                     fullBarcode = (cFinal + cs).PadLeft(20, '0')[^20..];
                 }
 
-                return new BarcodeResult {
+                var result = new BarcodeResult {
                     Success = true, 
                     BarcodeNumber = fullBarcode, 
                     BarcodeImageBase64 = generateImage ? GenerateBarcodeImage(fullBarcode) : "",
                     Chem = i.Chem, GenItemCode = currentPrefix.Substring(0,3), GenBottleCode = currentPrefix.Length>=4 ? currentPrefix.Substring(3,1) : "1", GenReagentCode = currentPrefix.Length>=5 ? currentPrefix.Substring(4,1) : "1",
                     LotNumber = i.LotNumber, SerialNumber = s4, ExpDate = exp, GeneratedAt = DateTime.Now
                 };
+
+                // Auto-Register in Database
+                try {
+                    _dbService.RegisterReagent(result);
+                } catch (Exception ex) {
+                    _logger.LogError($"DB Registration Warning: {ex.Message}");
+                    // Don't fail the barcode gen just because DB failed, but log it.
+                }
+
+                return result;
             } catch (Exception ex) { return Fail(ex.Message); }
         }
 

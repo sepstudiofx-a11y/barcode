@@ -20,6 +20,7 @@ builder.Services.AddSwaggerGen();
 
 // Register barcode services
 builder.Services.AddScoped<BarcodeService>();
+builder.Services.AddTransient<DatabaseService>();
 builder.Services.AddSingleton<BarcodeHistoryService>();
 builder.Services.AddSingleton<LicenseService>();
 

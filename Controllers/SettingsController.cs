@@ -11,8 +11,12 @@ namespace ReagentBarcode.Controllers
     {
         private readonly string _settingsFilePath = Path.Combine(Directory.GetCurrentDirectory(), "ConnectionSettings.json");
 
-        public IActionResult Index()
+        public IActionResult Index(string? message = null)
         {
+            if (!string.IsNullOrEmpty(message))
+            {
+                ViewBag.Message = message;
+            }
             var settings = LoadSettings();
             return View(settings);
         }
@@ -27,11 +31,13 @@ namespace ReagentBarcode.Controllers
                 {
                     await connection.OpenAsync();
                 }
-                return Json(new { success = true, message = "Connection successful!" });
+                return Json(new ConnectionTestResult { Success = true, Message = "Connection successful!" });
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = "Connection failed: " + ex.Message });
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | Inner: " + ex.InnerException.Message;
+                return Json(new ConnectionTestResult { Success = false, Message = "Connection failed: " + msg });
             }
         }
 
@@ -40,14 +46,17 @@ namespace ReagentBarcode.Controllers
         {
             try
             {
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(settings, options);
+                var options = new JsonSerializerOptions { 
+                    WriteIndented = true,
+                    TypeInfoResolver = AppJsonContext.Default
+                };
+                var json = JsonSerializer.Serialize(settings, AppJsonContext.Default.ConnectionSettings);
                 System.IO.File.WriteAllText(_settingsFilePath, json);
-                return Json(new { success = true, message = "Settings saved successfully!" });
+                return Json(new ConnectionTestResult { Success = true, Message = "Settings saved successfully!" });
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = "Failed to save settings: " + ex.Message });
+                return Json(new ConnectionTestResult { Success = false, Message = "Failed to save settings: " + ex.Message });
             }
         }
 
@@ -56,13 +65,15 @@ namespace ReagentBarcode.Controllers
             if (System.IO.File.Exists(_settingsFilePath))
             {
                 var json = System.IO.File.ReadAllText(_settingsFilePath);
-                return JsonSerializer.Deserialize<ConnectionSettings>(json);
+                return JsonSerializer.Deserialize(json, AppJsonContext.Default.ConnectionSettings) ?? new ConnectionSettings();
             }
             return new ConnectionSettings 
             { 
-                Server = "(localdb)\\MSSQLLocalDB", 
+                Server = "DESKTOP-TE2MER2\\BS360", 
                 Database = "BA80", 
-                IntegratedSecurity = true 
+                IntegratedSecurity = true,
+                TrustServerCertificate = true,
+                Encrypt = false
             };
         }
 
@@ -73,7 +84,8 @@ namespace ReagentBarcode.Controllers
                 DataSource = settings.Server,
                 InitialCatalog = settings.Database,
                 IntegratedSecurity = settings.IntegratedSecurity,
-                TrustServerCertificate = true,
+                TrustServerCertificate = settings.TrustServerCertificate,
+                Encrypt = settings.Encrypt,
                 MultipleActiveResultSets = true,
                 ConnectTimeout = 10
             };
@@ -95,5 +107,13 @@ namespace ReagentBarcode.Controllers
         public bool IntegratedSecurity { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
+        public bool TrustServerCertificate { get; set; } = true;
+        public bool Encrypt { get; set; } = false;
+    }
+
+    public class ConnectionTestResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
     }
 }

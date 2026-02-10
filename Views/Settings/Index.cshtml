@@ -14,7 +14,7 @@
                     <form id="settingsForm">
                         <div class="mb-4">
                             <label class="form-label">SQL Server Name</label>
-                            <input type="text" class="form-control" name="Server" value="@Model.Server" placeholder="e.g. LAPTOP-SCILBVGM\LOCALDB#8598DA7B">
+                            <input type="text" class="form-control" name="Server" value="@Model.Server" placeholder="e.g. DESKTOP-TE2MER2\BS360">
                             <small class="text-white-50">Local SQL Server or Instance Name</small>
                         </div>
 
@@ -48,6 +48,23 @@
                             </div>
                         </div>
 
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="trustCert" @(Model.TrustServerCertificate ? "checked" : "")>
+                                    <input type="hidden" name="TrustServerCertificate" id="trustCertHidden" value="@(Model.TrustServerCertificate ? "true" : "false")">
+                                    <label class="form-check-label text-white" for="trustCert">Trust Server Certificate</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="encryptConn" @(Model.Encrypt ? "checked" : "")>
+                                    <input type="hidden" name="Encrypt" id="encryptConnHidden" value="@(Model.Encrypt ? "true" : "false")">
+                                    <label class="form-check-label text-white" for="encryptConn">Encrypt Connection</label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="d-flex gap-3">
                             <button type="button" id="testBtn" class="btn btn-outline-secondary w-50">
                                 <i class="fas fa-plug me-2"></i>Test Connection
@@ -68,6 +85,12 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
+            // Check for message from controller
+            var message = @Html.Raw(Json.Serialize(ViewBag.Message));
+            if (message) {
+                showStatus(message, 'danger');
+            }
+
             // Toggle SQL Auth fields
             $('input[name="IntegratedSecurity"]').change(function() {
                 if ($('#sqlAuth').is(':checked')) {
@@ -77,16 +100,26 @@
                 }
             });
 
+            $('#trustCert').change(function() {
+                $('#trustCertHidden').val($(this).is(':checked'));
+            });
+
+            $('#encryptConn').change(function() {
+                $('#encryptConnHidden').val($(this).is(':checked'));
+            });
+
             $('#testBtn').click(function() {
                 const formData = $('#settingsForm').serialize();
                 showStatus('Testing connection...', 'info');
                 
                 $.post('@Url.Action("TestConnection", "Settings")', formData, function(res) {
-                    if (res.success) {
-                        showStatus(res.message, 'success');
+                    if (res.Success) {
+                        showStatus(res.Message, 'success');
                     } else {
-                        showStatus(res.message, 'danger');
+                        showStatus(res.Message, 'danger');
                     }
+                }).fail(function(xhr) {
+                    showStatus('Server Error: ' + xhr.responseText, 'danger');
                 });
             });
 
@@ -95,11 +128,13 @@
                 showStatus('Saving settings...', 'info');
 
                 $.post('@Url.Action("Save", "Settings")', formData, function(res) {
-                    if (res.success) {
-                        showStatus(res.message, 'success');
+                    if (res.Success) {
+                        showStatus(res.Message, 'success');
                     } else {
-                        showStatus(res.message, 'danger');
+                        showStatus(res.Message, 'danger');
                     }
+                }).fail(function(xhr) {
+                    showStatus('Server Error: ' + xhr.responseText, 'danger');
                 });
             });
 

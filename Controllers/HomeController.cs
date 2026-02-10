@@ -19,21 +19,32 @@ namespace ReagentBarcode.Controllers
         private readonly BarcodeService _barcodeService;
         private readonly BarcodeHistoryService _historyService;
         private readonly LicenseService _licenseService;
+        private readonly DatabaseService _databaseService;
 
         public HomeController(
             ILogger<HomeController> logger,
             BarcodeService barcodeService,
             BarcodeHistoryService historyService,
-            LicenseService licenseService)
+            LicenseService licenseService,
+            DatabaseService databaseService)
         {
             _logger = logger;
             _barcodeService = barcodeService;
             _historyService = historyService;
             _licenseService = licenseService;
+            _databaseService = databaseService;
         }
 
         public IActionResult Index()
         {
+            // Check Database Connection
+            string? dbError = _databaseService.CheckConnection();
+            if (dbError != null)
+            {
+                // Do not redirect. Just warn.
+                ViewBag.DbConnectionError = "SQL Error: " + dbError;
+            }
+
             ViewBag.Stats = _historyService.GetStats();
             ViewBag.IsLicenseValid = _licenseService.IsLicenseValid();
             ViewBag.RemainingDays = _licenseService.GetRemainingDays();
@@ -272,7 +283,7 @@ namespace ReagentBarcode.Controllers
         public IActionResult TestAllBarcode()
         {
             var testCases = GetTestCases();
-            var results = new List<object>();
+            var results = new List<TestResultDto>();
             int passCount = 0;
             int failCount = 0;
 
@@ -281,14 +292,25 @@ namespace ReagentBarcode.Controllers
                 try
                 {
                     var input = new ReagentInput
-                            {
-                                Chem = testCase.Chem,
+                    {
+                        Chem = testCase.Chem,
                         BottleType = testCase.Bottle,
                         RgtType = testCase.Rgt,
                         LotNumber = testCase.Lot,
                         SerialNumber = testCase.Serial,
                         ExpDate = testCase.Expiry
                     };
+
+                    // Normalization Logic (Same as BarcodeController)
+                    var chemMatch = ChemicalData.FindByAnyName(input.Chem);
+                    if (chemMatch != null) 
+                    {
+                        input.Chem = chemMatch.Name;
+                        if (string.IsNullOrEmpty(input.ItemCode) || input.ItemCode == "000") 
+                        {
+                            input.ItemCode = chemMatch.DefaultCode;
+                        }
+                    }
 
                     var result = _barcodeService.GenerateBarcode(input);
                     
@@ -297,7 +319,7 @@ namespace ReagentBarcode.Controllers
                     if (passed) passCount++;
                     else failCount++;
 
-                results.Add(new
+                results.Add(new TestResultDto
                 {
                         TestNumber = testCase.TestNumber,
                         Chem = testCase.Chem,
@@ -315,8 +337,8 @@ namespace ReagentBarcode.Controllers
                 catch (Exception ex)
                 {
                     failCount++;
-                results.Add(new
-                {
+                    results.Add(new TestResultDto
+                    {
                         TestNumber = testCase.TestNumber,
                         Chem = testCase.Chem,
                         Bottle = testCase.Bottle,
@@ -332,13 +354,14 @@ namespace ReagentBarcode.Controllers
                 }
             }
 
-            return Json(new
+            var summary = new TestSummaryDto
             {
                 Total = testCases.Count,
                 Passed = passCount,
                 Failed = failCount,
                 Results = results
-            });
+            };
+            return Json(summary);
         }
 
         private List<TestCase> GetTestCases()

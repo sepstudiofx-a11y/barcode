@@ -95,6 +95,8 @@ catch (Exception ex)
     Environment.Exit(1);
 }
 
+[JsonSerializable(typeof(TestSummaryDto))]
+[JsonSerializable(typeof(TestResultDto))]
 [JsonSerializable(typeof(DefinitionsResponse))]
 [JsonSerializable(typeof(ReagentInput))]
 [JsonSerializable(typeof(BarcodeResult))]
@@ -108,6 +110,9 @@ catch (Exception ex)
 [JsonSerializable(typeof(ReagentOption))]
 [JsonSerializable(typeof(List<ReagentOption>))]
 [JsonSerializable(typeof(ReagentBarcode.Services.LicenseData))]
-internal partial class AppJsonContext : JsonSerializerContext
+[JsonSerializable(typeof(ConnectionTestResult))]
+[JsonSerializable(typeof(ConnectionSettings))]
+[JsonSerializable(typeof(DbStatusResult))]
+public partial class AppJsonContext : JsonSerializerContext
 {
 }

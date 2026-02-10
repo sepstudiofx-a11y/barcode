@@ -208,10 +208,17 @@ namespace ReagentBarcode.Services
 
                 // Auto-Register in Database
                 try {
-                    _dbService.RegisterReagent(result);
+                    string? dbError = _dbService.RegisterReagent(result);
+                    if (dbError != null)
+                    {
+                        result.Success = false; 
+                        result.ErrorMessage = $"Barcode Generated but DB Registration Failed: {dbError}";
+                        _logger.LogError(result.ErrorMessage);
+                    }
                 } catch (Exception ex) {
-                    _logger.LogError($"DB Registration Warning: {ex.Message}");
-                    // Don't fail the barcode gen just because DB failed, but log it.
+                    result.Success = false;
+                    result.ErrorMessage = $"DB Registration Error: {ex.Message}";
+                    _logger.LogError(result.ErrorMessage);
                 }
 
                 return result;

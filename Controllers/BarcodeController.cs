@@ -10,11 +10,13 @@ namespace ReagentBarcode.Controllers
     {
         private readonly BarcodeService _barcodeService;
         private readonly LicenseService _licenseService;
+        private readonly DatabaseService _databaseService;
 
-        public BarcodeController(BarcodeService barcodeService, LicenseService licenseService)
+        public BarcodeController(BarcodeService barcodeService, LicenseService licenseService, DatabaseService databaseService)
         {
             _barcodeService = barcodeService;
             _licenseService = licenseService;
+            _databaseService = databaseService;
         }
 
         [HttpGet("license-status")]
@@ -27,6 +29,13 @@ namespace ReagentBarcode.Controllers
                 RemainingToday = _licenseService.GetRemainingGeneratesToday(),
                 CanGenerate = _licenseService.CanGenerateToday()
             });
+        }
+
+        [HttpGet("db-status")]
+        public IActionResult GetDbStatus()
+        {
+            var error = _databaseService.CheckConnection();
+            return Ok(new DbStatusResult { IsConnected = error == null, ErrorMessage = error });
         }
 
         [HttpPost("generate")]
@@ -121,6 +130,12 @@ namespace ReagentBarcode.Controllers
         public string Display { get; set; }
         public string Value { get; set; }
         public string Code { get; set; }
+    }
+
+    public class DbStatusResult
+    {
+        public bool IsConnected { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 
     public class DefinitionsResponse

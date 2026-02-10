@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using ReagentBarcode.Models;
 using System.Linq;
 using System.Collections.Generic;
+using ReagentBarcode.Controllers;
 
 namespace ReagentBarcode.Services
 {
@@ -18,46 +19,42 @@ namespace ReagentBarcode.Services
         {
             _logger = logger;
             
+            // FORCE HARDCODED CONNECTION STRING (User Request)
+            // Bypassing ConnectionSettings.json to ensure exact string is used.
+            _connectionString = "Data Source=DESKTOP-TE2MER2\\BS360;Initial Catalog=BA80;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=True;Application Name=\"SQL Server Management Studio\"";
+            _logger.LogInformation("Using forced hardcoded SQL connection string.");
+            
+            /*
             // Try load dynamic settings first
             string settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConnectionSettings.json");
             if (System.IO.File.Exists(settingsPath))
             {
-                try
-                {
-                    var json = System.IO.File.ReadAllText(settingsPath);
-                    var settings = System.Text.Json.JsonSerializer.Deserialize<dynamic>(json);
-                    
-                    var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
-                    {
-                        DataSource = settings.GetProperty("Server").GetString(),
-                        InitialCatalog = settings.GetProperty("Database").GetString(),
-                        IntegratedSecurity = settings.GetProperty("IntegratedSecurity").GetBoolean(),
-                        TrustServerCertificate = true,
-                        MultipleActiveResultSets = true
-                    };
-
-                    if (!builder.IntegratedSecurity)
-                    {
-                        builder.UserID = settings.GetProperty("Username").GetString();
-                        builder.Password = settings.GetProperty("Password").GetString();
-                    }
-                    
-                    _connectionString = builder.ConnectionString;
-                    _logger.LogInformation("Using dynamic SQL connection settings.");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Failed to load dynamic settings: {ex.Message}. Falling back to appsettings.json.");
-                    _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-                }
+               // ... (disabled)
             }
             else
             {
-                _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                _connectionString = configuration.GetConnectionString("DefaultConnection");
+            }
+            */
+        }
+
+        public string? CheckConnection()
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_connectionString))
+                {
+                    connection.Open();
+                    return null; // Success
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
             }
         }
 
-        public bool RegisterReagent(BarcodeResult barcodeResult)
+        public string? RegisterReagent(BarcodeResult barcodeResult)
         {
             try
             {
@@ -92,29 +89,31 @@ namespace ReagentBarcode.Services
                     
                     if (chemUid == -1) 
                     {
-                        _logger.LogError($"Could not determine ChemUID for chemical '{chemName}' and fallback failed. Registration skipped.");
-                        return false;
+                        var msg = $"Could not determine ChemUID for chemical '{chemName}' and fallback failed.";
+                        _logger.LogError(msg);
+                        return msg;
                     }
 
                     // 2. Get Template Row
                     var template = GetTemplateRow(connection, chemUid);
                     if (template == null)
                     {
-                        _logger.LogError($"No template reagent found for ChemUID {chemUid}. Registration skipped.");
-                        return false;
+                        var msg = $"No template reagent found for ChemUID {chemUid} (Chem: {chemName}).";
+                        _logger.LogError(msg);
+                        return msg;
                     }
 
                     // 3. Insert New Row
                     InsertReagent(connection, template, barcodeResult, chemUid);
                     
                     _logger.LogInformation($"Successfully registered barcode {barcodeResult.BarcodeNumber} for {chemName}.");
-                    return true;
+                    return null; // Success
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Database Registration Failed: {ex.Message}");
-                return false;
+                return $"Database Error: {ex.Message}";
             }
         }
 

@@ -8,9 +8,27 @@
         <div class="card-header bg-primary text-white">
             <h4 class="mb-0">
                 <i class="fas fa-barcode me-2"></i>Reagent Barcode Generator
+                <span id="dbStatusBadge" class="badge rounded-pill bg-secondary ms-2" style="font-size: 0.5em; vertical-align: middle;">
+                    <i class="fas fa-database me-1"></i>Checking...
+                </span>
             </h4>
         </div>
         <div class="card-body">
+            @if (ViewBag.DbConnectionError != null)
+            {
+                <div class="alert alert-warning shadow-sm border-warning">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                            <strong>Database Not Connected:</strong> @ViewBag.DbConnectionError
+                        </div>
+                        <a href="@Url.Action("Index", "Settings")" class="btn btn-sm btn-warning text-dark fw-bold">
+                            <i class="fas fa-plug me-1"></i> Connect Now
+                        </a>
+                    </div>
+                </div>
+            }
+
             <div id="alertContainer"></div>
 
             <form id="barcodeForm" class="row g-3">
@@ -125,6 +143,7 @@
         $(document).ready(function() {
             loadDefinitions();
             checkLicense();
+            updateDbStatus();
             
             // Set date picker to today
             const today = new Date();
@@ -134,7 +153,51 @@
             // $("#ExpDate").val(`${mm}/${dd}/${yyyy}`); // Don't auto-fill expiry, let user choose
         });
 
-        function checkLicense() {
+    function updateDbStatus() {
+        $.ajax({
+            url: "/api/barcode/db-status",
+            method: "GET",
+            success: function(data) {
+                const $badge = $("#dbStatusBadge");
+                if (data.IsConnected || data.isConnected) { // Handle Pascal/camelCase
+                    $badge.removeClass("bg-secondary bg-danger").addClass("bg-success")
+                          .html('<i class="fas fa-check-circle me-1"></i>DB Connected')
+                          .attr("title", "Database connection successful");
+                } else {
+                    const errorMsg = data.ErrorMessage || data.errorMessage || "Unknown connection error";
+                    $badge.removeClass("bg-secondary bg-success").addClass("bg-danger")
+                          .html('<i class="fas fa-times-circle me-1"></i>DB Offline')
+                          .attr("title", errorMsg); // Show error on hover
+                    
+                    // Also show a persistent alert if not already shown
+                    if ($("#dbErrorAlert").length === 0) {
+                        const alertHtml = `
+                            <div id="dbErrorAlert" class="alert alert-danger shadow-sm border-danger mt-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                                    <div>
+                                        <h5 class="alert-heading mb-1">Database Connection Failed</h5>
+                                        <p class="mb-0 text-break">${errorMsg}</p>
+                                        <hr>
+                                        <p class="mb-0 small">Please check your network connection, server name, and credentials.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        $("#alertContainer").prepend(alertHtml);
+                    } else {
+                        $("#dbErrorAlert p.text-break").text(errorMsg);
+                    }
+                }
+            },
+            error: function(xhr) {
+                $("#dbStatusBadge").removeClass("bg-secondary bg-success").addClass("bg-danger")
+                                  .html('<i class="fas fa-exclamation-triangle me-1"></i>Status Error');
+            }
+        });
+    }
+
+    function checkLicense() {
             $.ajax({
                 url: "/api/barcode/license-status",
                 method: "GET",
@@ -269,7 +332,18 @@
                     submitBtn.prop('disabled', false).html(originalText);
                 },
                 error: function (err) {
-                    const errorMsg = err.responseJSON?.errorMessage || err.responseJSON?.message || "Error generating barcode";
+                    console.error("Generate failed:", err);
+                    let errorMsg = "Error generating barcode";
+                    
+                    if (err.responseJSON) {
+                        // Check PascalCase (backend default) and camelCase
+                        errorMsg = err.responseJSON.ErrorMessage || err.responseJSON.errorMessage || err.responseJSON.Message || err.responseJSON.message || errorMsg;
+                    } else if (err.responseText) {
+                         // Fallback for raw text errors (e.g. 500 text paged)
+                         // Truncate if too long (HTML page)
+                         errorMsg = err.responseText.length < 200 ? err.responseText : "Server Error (Check logs)";
+                    }
+                    
                     showAlert(errorMsg, "danger");
                     submitBtn.prop('disabled', false).html(originalText);
                 }
